@@ -1,0 +1,7 @@
+*
+!*.*
+*.aux
+*.log
+*.pdf
+*.synctex.gz*
+!LaTeX_Report_Files/
