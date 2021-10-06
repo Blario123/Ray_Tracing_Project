@@ -34,6 +34,21 @@ public:
   }
 };
 
+class Observer
+{
+public:
+};
+
+class Scene
+{
+public:
+  // A vector containing pointers to the physical objects in the scene
+  std::vector<PhysicalObject *> scene_object_vector_pt;
+
+  // A pointer to the Observer of the scene
+  Observer *observer_pt;
+};
+
 int main()
 {
   Vec3 vector(1.0, 1.0, 1.0);
