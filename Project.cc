@@ -12,8 +12,24 @@
 class PhysicalObject
 {
 public:
-  double virtual Light_Emitted(Vec3 &position_vector,
-                               Vec3 &output_direction) = 0;
+  // This function returns the light emitted from this object's surface given a
+  // position on the surface and the direction of the light.
+  virtual double Light_Emitted(const Vec3 &position_vector,
+                               const Vec3 &output_direction) = 0;
+
+  // This function returns the Bidirection Reflectance Distribution Function
+  // given a position, incident light vector and outgoing light vector.
+  virtual double BRDF(const Vec3 &position,
+                      const Vec3 &incident_light,
+                      const Vec3 &outgoing_light) = 0;
+
+  // This function returns true if a light ray with a given initial position and
+  // direction intersects with this object. The third argument (passed by
+  // reference) will return the minimum distance the light ray took to intersect
+  // with this object.
+  virtual bool Intersection_Check(const Vec3 &initial_position,
+                                  const Vec3 &direction,
+                                  double &distance) = 0;
 };
 
 // The derived class of Sphere representing spheres in the scene
@@ -26,17 +42,49 @@ public:
     radius = Radius_Input;
   }
 
-  Vec3 centre;
-  double radius;
-  double Light_Emitted(Vec3 &position_vector, Vec3 &output_direction)
+  double Light_Emitted(const Vec3 &position_vector,
+                       const Vec3 &output_direction)
   {
     return 0.0;
   }
+
+  double BRDF(const Vec3 &position,
+              const Vec3 &incident_light,
+              const Vec3 &outgoing_light)
+  {
+    return 0.0;
+  }
+
+  bool Intersection_Check(const Vec3 &initial_position,
+                          const Vec3 &direction,
+                          double &distance)
+  {
+    return false;
+  }
+
+private:
+  Vec3 centre;
+  double radius;
 };
 
+// The class for the observer
 class Observer
 {
 public:
+private:
+  // The position of the observer
+  Vec3 position;
+
+  // The direction the observer is looking in
+  Vec3 direction;
+
+  // The horizontal and vertical viewing angles in radians
+  double horizontal_viewing_angle_radians;
+  double vertical_viewing_angle_radians;
+
+  // The resolution of the observer's camera (e.g 1920x1080 means that there are
+  // 1920 columns and 1080 rows of pixels)
+  std::vector<unsigned> resolution;
 };
 
 class Scene
