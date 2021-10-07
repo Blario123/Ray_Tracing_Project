@@ -8,74 +8,98 @@
 // readability)
 #include "Vec3.h"
 
+// Create a type "Colour" to be a Vec3 containing RGB components
+typedef Vec3 Colour;
+
+double pi = M_PI;
+double pi_reciprocal = M_1_PI;
+
 // The base class for physical objects present in the scene
 class PhysicalObject
 {
 public:
-  // This function returns the light emitted from this object's surface given a
-  // position on the surface and the direction of the light.
-  virtual double Light_Emitted(const Vec3 &position_vector,
+  // This function returns the components of the light emitted from this
+  // object's surface given a position on the surface and the direction of the
+  // light.
+  virtual Colour Light_Emitted(const Vec3 &position_vector,
                                const Vec3 &output_direction) = 0;
 
   // This function returns the Bidirection Reflectance Distribution Function
   // given a position, incident light vector and outgoing light vector.
-  virtual double BRDF(const Vec3 &position,
-                      const Vec3 &incident_light,
-                      const Vec3 &outgoing_light) = 0;
+  virtual Colour BRDF(const Vec3 &position,
+                      const Vec3 &incident_light_vector,
+                      const Vec3 &outgoing_light_vector) = 0;
 
   // This function returns true if a light ray with a given initial position and
   // direction intersects with this object. The third argument (passed by
   // reference) will return the minimum distance the light ray took to intersect
   // with this object.
   virtual bool Intersection_Check(const Vec3 &initial_position,
-                                  const Vec3 &direction,
+                                  const Vec3 &direction_vector,
                                   double &distance) = 0;
-};
+}; // End of PhysicalObject
 
 // The derived class of Sphere representing spheres in the scene
 class Sphere : public PhysicalObject
 {
 public:
   // The constructor for a sphere
-  Sphere(const Vec3 &Centre_Input,
-         const double &Radius_Input,
-         const double &Reflectivity_Input)
+  Sphere(const Vec3 &centre_,
+         const double &radius_,
+         const Colour &reflectivity_)
   {
 #ifdef TEST
-    if (Radius_Input <= 0.0)
+    if (radius_ <= 0.0)
     {
       throw std::invalid_argument(
         "Can not create a sphere with a non-positive radius");
     }
 
-    if (Reflectivity_Input < 0.0)
+    if (reflectivity_.x < 0.0 || reflectivity_.x > 1.0)
     {
-      throw std::invalid_argument("Can not have a negative reflectivity");
+      throw std::invalid_argument(
+        "Reflectivity components must be between 0 and 1");
+    }
+
+    if (reflectivity_.y < 0.0 || reflectivity_.y > 1.0)
+    {
+      throw std::invalid_argument(
+        "Reflectivity components must be between 0 and 1");
+    }
+
+    if (reflectivity_.z < 0.0 || reflectivity_.z > 1.0)
+    {
+      throw std::invalid_argument(
+        "Reflectivity components must be between 0 and 1");
     }
 #endif
 
     // Define the private member data values
-    centre = Centre_Input;
-    radius = Radius_Input;
-    reflectivity = Reflectivity_Input;
+    centre = centre_;
+    radius = radius_;
+
+    // The reflectivity divided by pi will be used as the BRDF so it is more
+    // convenient to simply have that value stored instead of the reflectivity
+    reflectivity_over_pi = reflectivity_ * pi_reciprocal;
   }
 
-  double Light_Emitted(const Vec3 &position_vector,
+  Colour Light_Emitted(const Vec3 &position_vector,
                        const Vec3 &output_direction)
   {
-    return 0.0;
+    // Temporary
+    Vec3 zero_vector;
+    return zero_vector;
   }
 
-  double BRDF(const Vec3 &position,
-              const Vec3 &incident_light,
-              const Vec3 &outgoing_light)
+  Colour BRDF(const Vec3 &position,
+              const Vec3 &incident_light_vector,
+              const Vec3 &outgoing_light_vector)
   {
-    double pi = M_PI;
-    return reflectivity / pi;
+    return reflectivity_over_pi;
   }
 
   bool Intersection_Check(const Vec3 &initial_position,
-                          const Vec3 &direction,
+                          const Vec3 &direction_vector,
                           double &distance)
   {
     return false;
@@ -87,8 +111,9 @@ private:
   double radius;
 
   // The reflectivity of the sphere
-  double reflectivity;
-};
+  Colour reflectivity_over_pi;
+}; // End of Sphere
+
 
 // The class for the observer
 class Observer
@@ -108,7 +133,8 @@ private:
   // The resolution of the observer's camera (e.g 1920x1080 means that there are
   // 1920 columns and 1080 rows of pixels)
   std::vector<unsigned> resolution;
-};
+}; // End of Observer
+
 
 class Scene
 {
@@ -118,10 +144,11 @@ public:
 
   // A pointer to the Observer of the scene
   Observer *observer_pt;
-};
+}; // End of Scene
 
 int main()
 {
-  Vec3 vector(1.0, 1.0, 1.0);
-  Sphere sphere1(vector, 1.0, 1.0);
+  Vec3 centre(1.0, 1.0, 1.0);
+  Colour reflectivity(1.0, 1.0, 1.0);
+  Sphere sphere1(centre, 1.0, reflectivity);
 }
