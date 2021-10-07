@@ -1,12 +1,17 @@
 // Define basic input/output stream objects
 #include <iostream>
 
+// Included for the ability to generate random values from a uniform
+// distribution
+#include <random>
+
 // Include image write implementation
 #include "Image.h"
 
 // Include 3D vectors (Already included in Image.h but kept here for
 // readability)
 #include "Vec3.h"
+
 
 // Create a type "Colour" to be a Vec3 containing RGB components
 typedef Vec3 Colour;
@@ -136,19 +141,55 @@ private:
 }; // End of Observer
 
 
-class Scene
+class SceneRender
 {
 public:
+  SceneRender() {}
+
   // A vector containing pointers to the physical objects in the scene
   std::vector<PhysicalObject *> scene_object_vector_pt;
 
   // A pointer to the Observer of the scene
   Observer *observer_pt;
+
+  // Random hemisphere vector generator
+  Vec3 random_vector_generator(const Vec3 &normal)
+  {
+    std::default_random_engine generator;
+    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
+
+    Vec3 random_vector;
+
+    while (true)
+    {
+      random_vector.x = distribution(generator);
+      random_vector.y = distribution(generator);
+      random_vector.z = distribution(generator);
+
+      double modulus = random_vector.norm2();
+
+      if (0 < modulus <= 1.0)
+      {
+        random_vector.normalise();
+        if (dot(random_vector, normal) < 0.0)
+        {
+          random_vector = -random_vector;
+        }
+        break;
+      }
+    }
+
+    return random_vector;
+  }
 }; // End of Scene
 
 int main()
 {
   Vec3 centre(1.0, 1.0, 1.0);
   Colour reflectivity(1.0, 1.0, 1.0);
-  Sphere sphere1(centre, 1.0, reflectivity);
+  Sphere test_sphere(centre, 1.0, reflectivity);
+
+  SceneRender test_scene;
+  Vec3 normal(-1.0, 3.4, 1.5);
+  std::cout << test_scene.random_vector_generator(normal) << std::endl;
 }
