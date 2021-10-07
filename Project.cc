@@ -36,10 +36,28 @@ public:
 class Sphere : public PhysicalObject
 {
 public:
-  Sphere(const Vec3 &Centre_Input, const double &Radius_Input)
+  // The constructor for a sphere
+  Sphere(const Vec3 &Centre_Input,
+         const double &Radius_Input,
+         const double &Reflectivity_Input)
   {
+#ifdef TEST
+    if (Radius_Input <= 0.0)
+    {
+      throw std::invalid_argument(
+        "Can not create a sphere with a non-positive radius");
+    }
+
+    if (Reflectivity_Input < 0.0)
+    {
+      throw std::invalid_argument("Can not have a negative reflectivity");
+    }
+#endif
+
+    // Define the private member data values
     centre = Centre_Input;
     radius = Radius_Input;
+    reflectivity = Reflectivity_Input;
   }
 
   double Light_Emitted(const Vec3 &position_vector,
@@ -52,7 +70,8 @@ public:
               const Vec3 &incident_light,
               const Vec3 &outgoing_light)
   {
-    return 0.0;
+    double pi = M_PI;
+    return reflectivity / pi;
   }
 
   bool Intersection_Check(const Vec3 &initial_position,
@@ -63,8 +82,12 @@ public:
   }
 
 private:
+  // The centre and radius of the sphere
   Vec3 centre;
   double radius;
+
+  // The reflectivity of the sphere
+  double reflectivity;
 };
 
 // The class for the observer
@@ -100,6 +123,5 @@ public:
 int main()
 {
   Vec3 vector(1.0, 1.0, 1.0);
-  Sphere sphere1(vector, 1.0);
-  std::cout << sphere1.Light_Emitted(vector, vector) << std::endl;
+  Sphere sphere1(vector, 1.0, 1.0);
 }
