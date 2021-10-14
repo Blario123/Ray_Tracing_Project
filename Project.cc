@@ -232,30 +232,75 @@ class Observer
 {
 public:
   Observer(const Vec3 &position_,
-           const Vec3 &direction_,
+           const Vec3 &camera_direction_,
            const Vec3 &upward_direction_,
-           const double &grid_width_)
+           const double &horizontal_field_of_view_angle_,
+           const std::vector<unsigned> &resolution_)
   {
     // Define the member variables
+
+    // Position of the camera
     position = position_;
-    direction = direction_;
-    upward_direction = upward_direction_;
-    grid_width = grid_width_;
+
+    // Direction the camera is pointing in
+    unit_camera_direction = camera_direction_ / camera_direction_.norm();
+
+    // The upwards direction of the camera
+    unit_upward_direction = upward_direction_ / upward_direction_.norm();
+
+    // The vector pointing "right" from the point of view of the camera
+    unit_sideways_direction =
+      cross(unit_upward_direction, unit_camera_direction);
+
+    // The horizontal viewing angle
+    horizontal_field_of_view_angle = horizontal_field_of_view_angle_;
+
+    // The resolution of the camera
+    resolution = resolution_;
+
+    // The vertical viewing angle
+    vertical_field_of_view_angle =
+      2.0 * atan((resolution[1] / resolution[0]) *
+                 tan(horizontal_field_of_view_angle / 2.0));
   }
 
+  Vec3 VectorToPixelXY(const unsigned &x_pixel, const unsigned &y_pixel)
+  {
+    // Add the vector from the camera to the centre of the "tennis racket" with
+    // the vector to the pixel specified from the centre of the "tennis racket"
+    Vec3 direction_to_pixel =
+      unit_camera_direction +
+      (2.0 * x_pixel / resolution[0] - 1.0) *
+        tan(horizontal_field_of_view_angle / 2.0) * unit_sideways_direction +
+      (2.0 * y_pixel / resolution[1] - 1.0) *
+        tan(vertical_field_of_view_angle / 2.0) * unit_upward_direction;
+
+    // Normalise this direction vector
+    direction_to_pixel.normalise();
+
+    return direction_to_pixel;
+  }
 
 private:
   // The position of the observer
   Vec3 position;
 
-  // The direction the observer is looking in
-  Vec3 direction;
+  // The direction the observer is looking in (unit vector)
+  Vec3 unit_camera_direction;
 
-  // The vector defining the upward direction
-  Vec3 upward_direction;
+  // The vector defining the upward direction (unit vector)
+  Vec3 unit_upward_direction;
 
-  // The size of the width of the "tennis racket"
-  double grid_width;
+  // The vector resulting from the cross product of the upward direction with
+  // the direction of the observer
+  Vec3 unit_sideways_direction;
+
+  // The horizontal viewing angle
+  double horizontal_field_of_view_angle;
+
+  // The vertical viewing angle (calculated from the horizontal field of view
+  // and the resolution in order to correspond to square pixels)
+  double vertical_field_of_view_angle;
 
   // The resolution of the observer's camera (e.g 1920x1080 means that there are
   // 1920 columns and 1080 rows of pixels)
