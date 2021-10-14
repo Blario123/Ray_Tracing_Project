@@ -231,6 +231,19 @@ private:
 class Observer
 {
 public:
+  Observer(const Vec3 &position_,
+           const Vec3 &direction_,
+           const Vec3 &upward_direction_,
+           const double &grid_width_)
+  {
+    // Define the member variables
+    position = position_;
+    direction = direction_;
+    upward_direction = upward_direction_;
+    grid_width = grid_width_;
+  }
+
+
 private:
   // The position of the observer
   Vec3 position;
@@ -238,9 +251,11 @@ private:
   // The direction the observer is looking in
   Vec3 direction;
 
-  // The horizontal and vertical viewing angles in radians
-  double horizontal_viewing_angle_radians;
-  double vertical_viewing_angle_radians;
+  // The vector defining the upward direction
+  Vec3 upward_direction;
+
+  // The size of the width of the "tennis racket"
+  double grid_width;
 
   // The resolution of the observer's camera (e.g 1920x1080 means that there are
   // 1920 columns and 1080 rows of pixels)
