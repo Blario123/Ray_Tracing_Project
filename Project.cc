@@ -40,10 +40,13 @@ public:
   // This function returns true if a light ray with a given initial position and
   // direction intersects with this object. The third argument (passed by
   // reference) will return the minimum distance the light ray took to intersect
-  // with this object.
+  // with this object. The fourth argument (passed by reference) will return the
+  // normal vector on the object at the intersection, in the direction the light
+  // ray came from.
   virtual bool Intersection_Check(const Vec3 &initial_position,
                                   const Vec3 &direction_vector,
-                                  double &distance) = 0;
+                                  double &distance,
+                                  Vec3 &normal_vector) = 0;
 }; // End of PhysicalObject
 
 // The derived class of Sphere representing spheres in the scene
@@ -108,7 +111,8 @@ public:
 
   bool Intersection_Check(const Vec3 &initial_position,
                           const Vec3 &direction_vector,
-                          double &distance)
+                          double &distance,
+                          Vec3 &normal_vector)
   {
     Vec3 normalised_direction_vector =
       direction_vector / direction_vector.norm();
@@ -133,7 +137,7 @@ public:
     double determinant = linear_coefficient * linear_coefficient -
                          4.0 * quadratic_coefficient * constant;
 
-    // If the determinant is negative, there are no intersections
+    // If the determinant is zero, there could be one intersection
     if (abs(determinant) < 1.0e-8)
     {
       // If the linear coefficient is greater than zero, the distance is
@@ -147,6 +151,19 @@ public:
         // Calculate the distance using the quadratic formula with a zero
         // determinant
         distance = -linear_coefficient / (2.0 * quadratic_coefficient);
+
+        // Find the outside normal to the sphere at the intersection point
+        // using simple vector arithmetic
+        normal_vector =
+          initial_position + distance * normalised_direction_vector - centre;
+
+        // If the light ray points in the same direction as the outside normal
+        // vector, the light ray came from inside the sphere and therefore we
+        // need the inside normal vector
+        if (dot(normal_vector, direction_vector) > 0.0)
+        {
+          normal_vector = -normal_vector;
+        }
 
         // There is an intersection
         return true;
@@ -169,6 +186,19 @@ public:
         // coefficient
         distance = sqrt(determinant) / (2.0 * quadratic_coefficient);
 
+        // Find the outside normal to the sphere at the intersection point
+        // using simple vector arithmetic
+        normal_vector =
+          initial_position + distance * normalised_direction_vector - centre;
+
+        // If the light ray points in the same direction as the outside normal
+        // vector, the light ray came from inside the sphere and therefore we
+        // need the inside normal vector
+        if (dot(normal_vector, direction_vector) > 0.0)
+        {
+          normal_vector = -normal_vector;
+        }
+
         // There is an intersection
         return true;
       }
@@ -188,6 +218,19 @@ public:
           distance = (-linear_coefficient + sqrt(determinant)) /
                      (2.0 * quadratic_coefficient);
 
+          // Find the outside normal to the sphere at the intersection point
+          // using simple vector arithmetic
+          normal_vector =
+            initial_position + distance * normalised_direction_vector - centre;
+
+          // If the light ray points in the same direction as the outside normal
+          // vector, the light ray came from inside the sphere and therefore we
+          // need the inside normal vector
+          if (dot(normal_vector, direction_vector) > 0.0)
+          {
+            normal_vector = -normal_vector;
+          }
+
           // There is an intersection
           return true;
         }
@@ -202,6 +245,19 @@ public:
           distance = (-linear_coefficient - sqrt(determinant)) /
                      (2.0 * quadratic_coefficient);
 
+          // Find the outside normal to the sphere at the intersection point
+          // using simple vector arithmetic
+          normal_vector =
+            initial_position + distance * normalised_direction_vector - centre;
+
+          // If the light ray points in the same direction as the outside normal
+          // vector, the light ray came from inside the sphere and therefore we
+          // need the inside normal vector
+          if (dot(normal_vector, direction_vector) > 0.0)
+          {
+            normal_vector = -normal_vector;
+          }
+
           // There is an intersection
           return true;
         }
@@ -211,6 +267,19 @@ public:
           // determinant, there is only one positive root
           distance = (-linear_coefficient + sqrt(determinant)) /
                      (2.0 * quadratic_coefficient);
+
+          // Find the outside normal to the sphere at the intersection point
+          // using simple vector arithmetic
+          normal_vector =
+            initial_position + distance * normalised_direction_vector - centre;
+
+          // If the light ray points in the same direction as the outside normal
+          // vector, the light ray came from inside the sphere and therefore we
+          // need the inside normal vector
+          if (dot(normal_vector, direction_vector) > 0.0)
+          {
+            normal_vector = -normal_vector;
+          }
 
           // There is an intersection
           return true;
@@ -266,7 +335,7 @@ public:
                  tan(horizontal_field_of_view_angle / 2.0));
   }
 
-  Vec3 VectorToPixelXY(const unsigned &x_pixel, const unsigned &y_pixel)
+  Vec3 Vector_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
   {
     // Add the vector from the camera to the centre of the "tennis racket" with
     // the vector to the pixel specified from the centre of the "tennis racket"
@@ -321,7 +390,7 @@ public:
   }
 
   // Random hemisphere vector generator
-  Vec3 random_vector_generator(const Vec3 &normal)
+  Vec3 Random_Vector_Generator(const Vec3 &normal)
   {
     // Create the uniform distribution between -1 and 1
     std::default_random_engine generator;
@@ -396,5 +465,5 @@ int main()
 
   SceneRender test_scene(object_list_pt, observer);
   Vec3 normal(-1.0, 3.4, 1.5);
-  std::cout << test_scene.random_vector_generator(normal) << std::endl;
+  std::cout << test_scene.Random_Vector_Generator(normal) << std::endl;
 }
