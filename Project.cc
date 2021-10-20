@@ -1,6 +1,9 @@
 // Define basic input/output stream objects
 #include <iostream>
 
+// Allow usage of std::unique_ptr
+#include <memory>
+
 // Included for the ability to generate random values from a uniform
 // distribution
 #include <random>
@@ -11,7 +14,6 @@
 // Include 3D vectors (Already included in Image.h but kept here for
 // readability)
 #include "Vec3.h"
-
 
 // Create a type "Colour" to be a Vec3 containing RGB components
 typedef Vec3 Colour;
@@ -308,16 +310,15 @@ private:
 }; // End of Observer
 
 
+// Rupinder: Make sure to fix all the pointer stuff here
 class SceneRender
 {
 public:
-  SceneRender() {}
-
-  // A vector containing pointers to the physical objects in the scene
-  std::vector<PhysicalObject *> scene_object_vector_pt;
-
-  // A pointer to the Observer of the scene
-  Observer *observer_pt;
+  SceneRender(std::vector<PhysicalObject *> object_vector_pt_,
+              Observer &observer_)
+  {
+    observer_pt = &observer_;
+  }
 
   // Random hemisphere vector generator
   Vec3 random_vector_generator(const Vec3 &normal)
@@ -361,6 +362,13 @@ public:
     return random_vector;
   } // End of random_vector_generator
 
+private:
+  // A vector containing pointers to the physical objects in the scene
+  std::vector<PhysicalObject *> object_vector_pt;
+
+  // A pointer to the Observer of the scene
+  Observer *observer_pt;
+
 }; // End of Scene
 
 int main()
@@ -369,20 +377,24 @@ int main()
   Colour reflectivity(1.0, 1.0, 1.0);
   Sphere test_sphere(centre, 1.0, reflectivity);
 
-  Vec3 initial_position(0.0, 0.0, 0.0);
-  Vec3 direction(1.0, 1.0, 1.0);
+  Vec3 position(0.0, 0.0, 0.0);
+  Vec3 direction(1.0, 0.0, 0.0);
+  Vec3 upward_direction(0.0, 0.0, 1.0);
+  double horizontal_field_of_view_angle = 90.0;
+  std::vector<unsigned> resolution;
+  resolution.push_back(1920);
+  resolution.push_back(1080);
 
-  double distance;
+  Observer observer(position,
+                    direction,
+                    upward_direction,
+                    horizontal_field_of_view_angle,
+                    resolution);
 
-  bool test =
-    test_sphere.Intersection_Check(initial_position, direction, distance);
+  std::vector<PhysicalObject *> object_list_pt;
+  object_list_pt.push_back(&test_sphere);
 
-  if (test)
-  {
-    std::cout << distance << std::endl;
-  }
-
-  SceneRender test_scene;
+  SceneRender test_scene(object_list_pt, observer);
   Vec3 normal(-1.0, 3.4, 1.5);
   std::cout << test_scene.random_vector_generator(normal) << std::endl;
 }
