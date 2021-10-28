@@ -408,19 +408,71 @@ public:
     return random_vector;
   } // End of random_vector_generator
 
-  Vec3 First_Collision_Point(const Ray &ray)
+  Vec3 First_Intersection_Point(const Ray &ray, int &object_intersection_index)
   {
-    double smallest_distance;
-    unsigned corresponding_object;
-    double current_distance;
+    // If there is no intersection between ray and an object, the index will
+    // stay as -1.
+    object_intersection_index = -1;
 
+    // A Boolean showing whether ray has been found to intersect with an object
+    // in the scene. Used for knowing when to update smallest_distance.
+    bool found_an_intersection = false;
+
+    // Store the smallest distance from the ray source to an intersection along
+    // with the index of the corresponding object in object_vector_pt.
+    double smallest_distance = 0.0;
+
+    // Store the distance of the ray to the intersection with the current object
+    // being looped over.
+    double current_distance = 0.0;
+
+    // Loop over every object in the scene to find an intersection
     for (unsigned i = 0; i < object_vector_pt.size(); i++)
     {
-      object_vector_pt[i]->Intersection_Check(ray, current_distance);
+      // If an intersection has already been found, check whether this new
+      // intersection is closer to the ray source than the previous closest
+      // intersection.
+      if (found_an_intersection)
+      {
+        // Check whether this intersection is closer than the previous closest
+        // one. If so, replace smallest_distance
+        if (object_vector_pt[i]->Intersection_Check(ray, current_distance) &&
+            current_distance < smallest_distance)
+        {
+          smallest_distance = current_distance;
+          object_intersection_index = i;
+        }
+      }
+      // If an intersection hasn't been found yet, any intersection will be the
+      // closest intersection so far.
+      else
+      {
+        if (object_vector_pt[i]->Intersection_Check(ray, current_distance))
+        {
+          // This section of code will only be invoked when the first
+          // intersection is found.
+          smallest_distance = current_distance;
+          object_intersection_index = i;
+
+          // An intersection has been found
+          found_an_intersection = true;
+        }
+      }
     }
-    // Rupinder: Finish this
-    Vec3 zero_vector(0.0, 0.0, 0.0);
-    return zero_vector;
+
+    // If there hasn't been an intersection, return the zero vector
+    if (object_intersection_index == -1)
+    {
+      Vec3 zero_vector;
+      return zero_vector;
+    }
+
+    // Calculate the position of closest intersection between a ray and any
+    // object in the scene.
+    Vec3 vector = ray.Get_Initial_Position() +
+                  smallest_distance * ray.Get_Direction_Vector();
+
+    return vector;
   }
 
 private:
