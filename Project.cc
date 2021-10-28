@@ -29,13 +29,41 @@ public:
   // object's surface given a position on the surface and the direction of the
   // light.
   virtual Colour Light_Emitted(const Vec3 &position_vector,
-                               const Vec3 &output_direction) = 0;
+                               const Vec3 &output_direction)
+  {
+    if (Light_Emitted_Fct_Pt == 0)
+    {
+      // If the pointer to the light emitted is a null pointer, return the zero
+      // vector
+      Colour zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If Light_Emitted_Fct_Pt points to a function, evaluate this function
+      return (*Light_Emitted_Fct_Pt)(position_vector, output_direction);
+    }
+  }
 
   // This function returns the Bidirection Reflectance Distribution Function
   // given a position, incident light vector and outgoing light vector.
   virtual Colour BRDF(const Vec3 &position,
                       const Vec3 &incident_light_vector,
-                      const Vec3 &outgoing_light_vector) = 0;
+                      const Vec3 &outgoing_light_vector)
+  {
+    if (BRDF_Fct_Pt == 0)
+    {
+      // If the pointer to the BRDF is a null pointer, return the zero vector
+      Colour zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If BRDF_Fct_Pt points to a function, evaluate this function
+      return (*BRDF_Fct_Pt)(
+        position, incident_light_vector, outgoing_light_vector);
+    }
+  }
 
   // This function returns true if a light ray with a given initial position and
   // direction intersects with this object. The third argument (passed by
@@ -47,16 +75,31 @@ public:
                                   const Vec3 &direction_vector,
                                   double &distance,
                                   Vec3 &normal_vector) = 0;
+
+  // A function pointer to the light emitted
+  Colour (*Light_Emitted_Fct_Pt)(const Vec3 &position_vector,
+                                 const Vec3 &output_direction);
+
+  // A function pointer to the BRDF
+  Colour (*BRDF_Fct_Pt)(const Vec3 &position,
+                        const Vec3 &incident_light_vector,
+                        const Vec3 &outgoing_light_vector);
 }; // End of PhysicalObject
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 
 // The derived class of Sphere representing spheres in the scene
 class Sphere : public PhysicalObject
 {
 public:
-  // The constructor for a sphere
-  Sphere(const Vec3 &centre_,
-         const double &radius_,
-         const Colour &reflectivity_)
+  // The constructor for a sphere requiring only a centre and a radius
+  Sphere(const Vec3 &centre_, const double &radius_)
   {
 #ifdef TEST
     if (radius_ <= 0.0)
@@ -87,28 +130,13 @@ public:
     // Define the private member data values
     centre = centre_;
     radius = radius_;
-
-    // The reflectivity divided by pi will be used as the BRDF so it is more
-    // convenient to simply have that value stored instead of the reflectivity
-    reflectivity_over_pi = reflectivity_ * pi_reciprocal;
   }
 
-  Colour Light_Emitted(const Vec3 &position_vector,
-                       const Vec3 &output_direction)
-  {
-    // Temporary
-    Vec3 zero_vector;
-    return zero_vector;
-  }
 
-  Colour BRDF(const Vec3 &position,
-              const Vec3 &incident_light_vector,
-              const Vec3 &outgoing_light_vector)
-  {
-    // Return the Lambertian BRDF for now
-    return reflectivity_over_pi;
-  }
-
+  // Returns true if a light ray with an initial position and direction vector
+  // intersects with this object. Also returns the closest distance from the
+  // light ray source to the sphere along with the normal vector to the sphere
+  // at the point of intersection.
   bool Intersection_Check(const Vec3 &initial_position,
                           const Vec3 &direction_vector,
                           double &distance,
@@ -293,8 +321,6 @@ private:
   Vec3 centre;
   double radius;
 
-  // The reflectivity of the sphere
-  Colour reflectivity_over_pi;
 }; // End of Sphere
 
 
@@ -335,6 +361,8 @@ public:
                  tan(horizontal_field_of_view_angle / 2.0));
   }
 
+  // When given a pixel, this function will return the normalised vector from
+  // the camera to the "grid" in front of it.
   Vec3 Vector_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
   {
     // Add the vector from the camera to the centre of the "tennis racket" with
@@ -379,14 +407,25 @@ private:
 }; // End of Observer
 
 
-// Rupinder: Make sure to fix all the pointer stuff here
 class SceneRender
 {
 public:
-  SceneRender(std::vector<PhysicalObject *> object_vector_pt_,
-              Observer &observer_)
+  // Constructor
+  SceneRender(Observer &observer_)
   {
-    observer_pt = &observer_;
+    observer_pt = std::make_unique<Observer>(observer_);
+  }
+
+  // Add objects to the scene via a unique pointer
+  void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
+  {
+    object_vector_pt.push_back(std::move(object_upt));
+  }
+
+  // The same function as above but now accepting rvalues.
+  void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt)
+  {
+    object_vector_pt.push_back(std::move(object_upt));
   }
 
   // Random hemisphere vector generator
@@ -431,21 +470,50 @@ public:
     return random_vector;
   } // End of random_vector_generator
 
+
 private:
   // A vector containing pointers to the physical objects in the scene
-  std::vector<PhysicalObject *> object_vector_pt;
+  std::vector<std::unique_ptr<PhysicalObject>> object_vector_pt;
 
   // A pointer to the Observer of the scene
-  Observer *observer_pt;
+  std::unique_ptr<Observer> observer_pt;
 
 }; // End of Scene
 
+
+// Creating a scene (Just a test for now)
+
+Colour test_light_emitted(const Vec3 &position_vector,
+                          const Vec3 &output_direction)
+{
+  return Colour(1.0, 1.0, 1.0);
+}
+
+Colour test_BRDF(const Vec3 &position,
+                 const Vec3 &incident_light_vector,
+                 const Vec3 &outgoing_light_vector)
+{
+  // Implement the Lambertian BRDF with a reflectivity of 1
+  return Vec3(pi_reciprocal, pi_reciprocal, pi_reciprocal);
+}
+
 int main()
 {
-  Vec3 centre(1.0, 1.0, 1.0);
-  Colour reflectivity(1.0, 1.0, 1.0);
-  Sphere test_sphere(centre, 1.0, reflectivity);
+  // Create two spheres, one emitting light and one not.
+  Vec3 centre1(1.0, 1.0, 0.0);
+  Vec3 centre2(1.0, -1.0, 0.0);
+  Sphere sphere1(centre1, 1.0);
+  Sphere sphere2(centre2, 1.0);
 
+  // Set sphere1 as the shining sphere by changing its light emitted
+  sphere1.Light_Emitted_Fct_Pt = test_light_emitted;
+
+  // Set the BRDF of both spheres to the Lambertian BRDF with a reflectivity
+  // of 1.0
+  sphere1.BRDF_Fct_Pt = test_BRDF;
+  sphere2.BRDF_Fct_Pt = test_BRDF;
+
+  // Create an observer
   Vec3 position(0.0, 0.0, 0.0);
   Vec3 direction(1.0, 0.0, 0.0);
   Vec3 upward_direction(0.0, 0.0, 1.0);
@@ -454,16 +522,17 @@ int main()
   resolution.push_back(1920);
   resolution.push_back(1080);
 
+  // Create an observer for the scene
   Observer observer(position,
                     direction,
                     upward_direction,
                     horizontal_field_of_view_angle,
                     resolution);
 
-  std::vector<PhysicalObject *> object_list_pt;
-  object_list_pt.push_back(&test_sphere);
+  // Create the scene
+  SceneRender test_scene(observer);
 
-  SceneRender test_scene(object_list_pt, observer);
-  Vec3 normal(-1.0, 3.4, 1.5);
-  std::cout << test_scene.Random_Vector_Generator(normal) << std::endl;
+  // Add the test sphere to the scene
+  test_scene.Add_Object(std::make_unique<Sphere>(sphere1));
+  test_scene.Add_Object(std::make_unique<Sphere>(sphere2));
 }
