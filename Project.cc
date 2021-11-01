@@ -32,7 +32,7 @@ public:
   // This function returns the components of the light emitted from this
   // object's surface given a position on the surface and the direction of the
   // light.
-  virtual Radiance Light_Emitted(const Ray &light_ray)
+  virtual Radiance Light_Emitted(const Vec3 &position)
   {
     if (Light_Emitted_Fct_Pt == 0)
     {
@@ -44,7 +44,7 @@ public:
     else
     {
       // If Light_Emitted_Fct_Pt points to a function, evaluate this function
-      return (*Light_Emitted_Fct_Pt)(light_ray);
+      return (*Light_Emitted_Fct_Pt)(position);
     }
   }
 
@@ -83,12 +83,12 @@ public:
                                  const Vec3 &direction) = 0;
 
   // A function pointer to the light emitted
-  Radiance (*Light_Emitted_Fct_Pt)(const Ray &light_ray);
+  Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
 
   // A function pointer to the BRDF
   Radiance (*BRDF_Fct_Pt)(const Vec3 &position,
                           const Vec3 &incident_light_vector,
-                          const Vec3 &outgoing_light_vector);
+                          const Vec3 &outgoing_light_vector) = 0;
 }; // End of PhysicalObject
 
 
@@ -301,7 +301,7 @@ public:
 
   // When given a pixel, this function will return the normalised vector from
   // the camera to the given pixel on the "grid" in front of the camera
-  Vec3 Vector_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
+  Ray Ray_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
   {
     // Add the vector from the camera to the centre of the "tennis racket" with
     // the vector to the pixel specified from the centre of the "tennis racket"
@@ -315,7 +315,12 @@ public:
     // Normalise this direction vector
     direction_to_pixel.normalise();
 
-    return direction_to_pixel;
+    return Ray(position, direction_to_pixel);
+  }
+
+  std::vector<unsigned> Get_Resolution() const
+  {
+    return resolution;
   }
 
 private:
@@ -357,13 +362,13 @@ public:
   // Add objects to the scene via a unique pointer
   void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
   {
-    object_vector_pt.push_back(std::move(object_upt));
+    object_pt_vector.push_back(std::move(object_upt));
   }
 
   // The same function as above but now accepting rvalues.
   void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt)
   {
-    object_vector_pt.push_back(std::move(object_upt));
+    object_pt_vector.push_back(std::move(object_upt));
   }
 
   // Random hemisphere vector generator
@@ -419,7 +424,7 @@ public:
     bool found_an_intersection = false;
 
     // Store the smallest distance from the ray source to an intersection along
-    // with the index of the corresponding object in object_vector_pt.
+    // with the index of the corresponding object in object_pt_vector.
     double smallest_distance = 0.0;
 
     // Store the distance of the ray to the intersection with the current object
@@ -427,7 +432,7 @@ public:
     double current_distance = 0.0;
 
     // Loop over every object in the scene to find an intersection
-    for (unsigned i = 0; i < object_vector_pt.size(); i++)
+    for (unsigned i = 0; i < object_pt_vector.size(); i++)
     {
       // If an intersection has already been found, check whether this new
       // intersection is closer to the ray source than the previous closest
@@ -436,7 +441,7 @@ public:
       {
         // Check whether this intersection is closer than the previous closest
         // one. If so, replace smallest_distance
-        if (object_vector_pt[i]->Intersection_Check(ray, current_distance) &&
+        if (object_pt_vector[i]->Intersection_Check(ray, current_distance) &&
             current_distance < smallest_distance)
         {
           smallest_distance = current_distance;
@@ -447,7 +452,7 @@ public:
       // closest intersection so far.
       else
       {
-        if (object_vector_pt[i]->Intersection_Check(ray, current_distance))
+        if (object_pt_vector[i]->Intersection_Check(ray, current_distance))
         {
           // This section of code will only be invoked when the first
           // intersection is found.
@@ -463,8 +468,7 @@ public:
     // If there hasn't been an intersection, return the zero vector
     if (object_intersection_index == -1)
     {
-      Vec3 zero_vector;
-      return zero_vector;
+      return Vec3(0.0, 0.0, 0.0);
     }
 
     // Calculate the position of closest intersection between a ray and any
@@ -473,11 +477,64 @@ public:
                   smallest_distance * ray.Get_Direction_Vector();
 
     return vector;
+  } // End of First_Intersection_Point
+
+  Radiance Light_Out(const Ray &light_ray, int bounces_remaining)
+  {
+    if (bounces_remaining == 0)
+    {
+      return Radiance(0.0, 0.0, 0.0);
+    }
+
+    int index_of_object_hit;
+
+    Vec3 intersection_point =
+      First_Intersection_Point(light_ray, index_of_object_hit);
+
+    if (index_of_object_hit == -1)
+    {
+      return Radiance(0.0, 0.0, 0.0);
+    }
+
+    Radiance resulting_light =
+      object_pt_vector[index_of_object_hit]->Light_Emitted(intersection_point);
+
+    Vec3 normal = object_pt_vector[index_of_object_hit]->Orientated_Normal(
+      intersection_point, -light_ray.Get_Direction_Vector());
+
+    Vec3 new_direction = Random_Vector_Generator(normal);
+    Ray new_ray(intersection_point, new_direction);
+
+    Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
+      intersection_point,
+      light_ray.Get_Direction_Vector(),
+      new_ray.Get_Direction_Vector());
+
+    resulting_light += 2 * pi * brdf * dot(new_direction, normal) *
+                       Light_Out(new_ray, bounces_remaining - 1);
+
+    return resulting_light;
+  }
+
+  void Render_Image()
+  {
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+    Image image(resolution[0], resolution[1]);
+
+    for (unsigned i = 0; i < resolution[0]; i++)
+    {
+      for (unsigned j = 0; j < resolution[1]; j++)
+      {
+        image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j), 1);
+      }
+    }
+
+    image.Save("blah.png");
   }
 
 private:
   // A vector containing pointers to the physical objects in the scene
-  std::vector<std::unique_ptr<PhysicalObject>> object_vector_pt;
+  std::vector<std::unique_ptr<PhysicalObject>> object_pt_vector;
 
   // A pointer to the Observer of the scene
   std::unique_ptr<Observer> observer_pt;
@@ -487,7 +544,7 @@ private:
 
 // Creating a scene (Just a test for now)
 
-Radiance test_light_emitted(const Ray &light_ray)
+Radiance test_light_emitted(const Vec3 &position)
 {
   return Radiance(1.0, 1.0, 1.0);
 }
@@ -503,8 +560,8 @@ Radiance test_BRDF(const Vec3 &position,
 int main()
 {
   // Create two spheres, one emitting light and one not.
-  Vec3 centre1(1.0, 1.0, 0.0);
-  Vec3 centre2(1.0, -1.0, 0.0);
+  Vec3 centre1(10.0, 1.0, 0.0);
+  Vec3 centre2(10.0, -1.0, 0.0);
   Sphere sphere1(centre1, 1.0);
   Sphere sphere2(centre2, 1.0);
 
@@ -538,4 +595,6 @@ int main()
   // Add the test sphere to the scene
   test_scene.Add_Object(std::make_unique<Sphere>(sphere1));
   test_scene.Add_Object(std::make_unique<Sphere>(sphere2));
+
+  test_scene.Render_Image();
 }
