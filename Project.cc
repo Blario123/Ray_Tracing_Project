@@ -285,7 +285,7 @@ public:
 
     // The vector pointing "right" from the point of view of the camera
     unit_sideways_direction =
-      cross(unit_upward_direction, unit_camera_direction);
+      cross(unit_camera_direction, unit_upward_direction);
 
     // The horizontal viewing angle
     horizontal_field_of_view_angle = horizontal_field_of_view_angle_;
@@ -295,7 +295,7 @@ public:
 
     // The vertical viewing angle
     vertical_field_of_view_angle =
-      2.0 * atan((resolution[1] / resolution[0]) *
+      2.0 * atan((double(resolution[1]) / double(resolution[0])) *
                  tan(horizontal_field_of_view_angle / 2.0));
   }
 
@@ -307,13 +307,14 @@ public:
     // the vector to the pixel specified from the centre of the "tennis racket"
     Vec3 direction_to_pixel =
       unit_camera_direction +
-      (2.0 * x_pixel / resolution[0] - 1.0) *
-        tan(horizontal_field_of_view_angle / 2.0) * unit_sideways_direction +
-      (2.0 * y_pixel / resolution[1] - 1.0) *
-        tan(vertical_field_of_view_angle / 2.0) * unit_upward_direction;
+      (2.0 * tan(horizontal_field_of_view_angle / 2.0) / resolution[0]) *
+        (x_pixel - (resolution[0] / 2.0 - 0.5)) * unit_sideways_direction +
+      (2.0 * tan(vertical_field_of_view_angle / 2.0) / resolution[1]) *
+        ((resolution[1] / 2.0 - 0.5) - y_pixel) * unit_upward_direction;
 
     // Normalise this direction vector
     direction_to_pixel.normalise();
+
 
     return Ray(position, direction_to_pixel);
   }
@@ -561,12 +562,13 @@ int main()
 {
   // Create two spheres, one emitting light and one not.
   Vec3 centre1(10.0, 1.0, 0.0);
-  Vec3 centre2(10.0, -1.0, 0.0);
+  Vec3 centre2(1.0, -1.0, 0.0);
   Sphere sphere1(centre1, 1.0);
   Sphere sphere2(centre2, 1.0);
 
   // Set sphere1 as the shining sphere by changing its light emitted
   sphere1.Light_Emitted_Fct_Pt = test_light_emitted;
+  sphere2.Light_Emitted_Fct_Pt = test_light_emitted;
 
   // Set the BRDF of both spheres to the Lambertian BRDF with a reflectivity
   // of 1.0
