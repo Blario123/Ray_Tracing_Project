@@ -480,7 +480,9 @@ public:
     return vector;
   } // End of First_Intersection_Point
 
-  Radiance Light_Out(const Ray &light_ray, int bounces_remaining)
+  Radiance Light_Out(const Ray &light_ray,
+                     unsigned bounces_remaining,
+                     const unsigned &number_of_random_samples)
   {
     if (bounces_remaining == 0)
     {
@@ -503,30 +505,39 @@ public:
     Vec3 normal = object_pt_vector[index_of_object_hit]->Orientated_Normal(
       intersection_point, -light_ray.Get_Direction_Vector());
 
-    Vec3 new_direction = Random_Vector_Generator(normal);
-    Ray new_ray(intersection_point, new_direction);
+    for (unsigned i = 0; i < number_of_random_samples; i++)
+    {
+      Vec3 new_direction = Random_Vector_Generator(normal);
+      Ray new_ray(intersection_point, new_direction);
 
-    Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
-      intersection_point,
-      light_ray.Get_Direction_Vector(),
-      new_ray.Get_Direction_Vector());
+      Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
+        intersection_point,
+        light_ray.Get_Direction_Vector(),
+        new_ray.Get_Direction_Vector());
 
-    resulting_light += 2 * pi * brdf * dot(new_direction, normal) *
-                       Light_Out(new_ray, bounces_remaining - 1);
+      resulting_light +=
+        (2.0 * pi * brdf / number_of_random_samples) *
+        dot(new_direction, normal) *
+        Light_Out(new_ray, bounces_remaining - 1, number_of_random_samples);
+    }
 
     return resulting_light;
   }
 
-  void Render_Image()
+  void Render_Image(const unsigned &number_of_bounces,
+                    const unsigned &number_of_random_samples)
   {
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
     Image image(resolution[0], resolution[1]);
 
     for (unsigned i = 0; i < resolution[0]; i++)
     {
+      std::cout << i << std::endl;
       for (unsigned j = 0; j < resolution[1]; j++)
       {
-        image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j), 1);
+        image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
+                                number_of_bounces,
+                                number_of_random_samples);
       }
     }
 
@@ -561,14 +572,13 @@ Radiance test_BRDF(const Vec3 &position,
 int main()
 {
   // Create two spheres, one emitting light and one not.
-  Vec3 centre1(10.0, 1.0, 0.0);
-  Vec3 centre2(1.0, -1.0, 0.0);
+  Vec3 centre1(2.0, 1.0, 0.0);
+  Vec3 centre2(2.0, -1.0, 0.0);
   Sphere sphere1(centre1, 1.0);
   Sphere sphere2(centre2, 1.0);
 
   // Set sphere1 as the shining sphere by changing its light emitted
   sphere1.Light_Emitted_Fct_Pt = test_light_emitted;
-  sphere2.Light_Emitted_Fct_Pt = test_light_emitted;
 
   // Set the BRDF of both spheres to the Lambertian BRDF with a reflectivity
   // of 1.0
@@ -598,5 +608,5 @@ int main()
   test_scene.Add_Object(std::make_unique<Sphere>(sphere1));
   test_scene.Add_Object(std::make_unique<Sphere>(sphere2));
 
-  test_scene.Render_Image();
+  test_scene.Render_Image(2, 5);
 }
