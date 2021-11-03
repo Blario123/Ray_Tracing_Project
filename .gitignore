@@ -8,3 +8,6 @@ LaTeX_Report_Files/*.pdf
 !Materials/
 !literature/
 !cgi_instructions.pdf
+*.png
+test.cc
+.vscode/*
