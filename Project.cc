@@ -594,9 +594,8 @@ public:
 
 
   // Render the image and export it to filename.
-  void Render_Image(const std::string &filename,
-                    const unsigned &number_of_bounces,
-                    const unsigned &number_of_random_samples)
+  Image Render_Image(const unsigned &number_of_bounces,
+                     const unsigned &number_of_random_samples)
   {
     // Find the resolution of the observer
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
@@ -629,8 +628,7 @@ public:
         // rendered
         if (tenth_percentiles == 10)
         {
-          std::cout << "The image has been rendered and will now be exported."
-                    << std::endl;
+          std::cout << "The image has been rendered." << std::endl;
         }
         else
         {
@@ -649,8 +647,7 @@ public:
       }
     }
 
-    // Save the image as filename
-    image.Save(filename);
+    return image;
   }
 
 private:
@@ -669,60 +666,75 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-// Creating a scene (Just a test for now)
-
-Radiance test_light_emitted(const Vec3 &position)
+// Validation case
+// Create a light emitted function for the validation case
+Radiance validation_light_emitted(const Vec3 &position)
 {
-  return Radiance(0.5, 0.5, 0.5);
+  // Return this random RGB radiance value
+  return Radiance(0.1, 0.4, 0.8);
 }
 
-Radiance test_BRDF(const Vec3 &position,
-                   const Vec3 &incident_light_vector,
-                   const Vec3 &outgoing_light_vector)
+// Create a BRDF for the validation case
+Radiance validation_BRDF(const Vec3 &position,
+                         const Vec3 &incident_light_vector,
+                         const Vec3 &outgoing_light_vector)
 {
-  // Implement the Lambertian BRDF with a reflectivity of 1
+  // Implement the Lambertian BRDF with a reflectivity of (0.25, 0.5, 0.75) in
+  // the RGB components
   return Vec3(0.25 * pi_reciprocal, 0.5 * pi_reciprocal, 0.75 * pi_reciprocal);
 }
 
 int main()
 {
-  // Create two spheres, one emitting light and one not.
-  Vec3 centre1(2.0, 1.0, 0.0);
-  Vec3 centre2(2.0, -1.0, 0.0);
-  Sphere sphere1(centre1, 1.0);
-  Sphere sphere2(centre2, 1.0);
+  // Create an observer for the validation case. This observer is positioned at
+  // the origin, faces towards positive x with upwards orientated with the
+  // z-axis. The horizontal field of view is 90 degrees, and the resolution of
+  // the image is 1x1.
+  Observer validation_observer(Vec3(0.0, 0.0, 0.0),
+                               Vec3(1.0, 0.0, 0.0),
+                               Vec3(0.0, 0.0, 1.0),
+                               90.0,
+                               std::vector<unsigned>(2, 1.0));
 
-  // Set sphere1 as the shining sphere by changing its light emitted
-  sphere1.Light_Emitted_Fct_Pt = test_light_emitted;
+  SceneRender validation_scene(validation_observer);
 
-  // Set the BRDF of both spheres to the Lambertian BRDF with a reflectivity
-  // of 1.0
-  sphere1.BRDF_Fct_Pt = test_BRDF;
-  sphere2.BRDF_Fct_Pt = test_BRDF;
+  // Create a single sphere for the validation case
+  Sphere validation_sphere(Vec3(0.0, 0.0, 0.0), 1.0);
 
-  // Create an observer
-  Vec3 position(0.0, 0.0, 0.0);
-  Vec3 direction(1.0, 0.0, 0.0);
-  Vec3 upward_direction(0.0, 0.0, 1.0);
-  double horizontal_field_of_view_angle = 90.0;
-  std::vector<unsigned> resolution;
-  resolution.push_back(1920);
-  resolution.push_back(1080);
+  // Set the light emitted by this validation sphere
+  validation_sphere.Light_Emitted_Fct_Pt = validation_light_emitted;
 
-  // Create an observer for the scene
-  Observer observer(position,
-                    direction,
-                    upward_direction,
-                    horizontal_field_of_view_angle,
-                    resolution);
+  // Set the BRDF of the validation sphere to a Lambertian BRDF
+  validation_sphere.BRDF_Fct_Pt = validation_BRDF;
 
-  // Create the scene
-  SceneRender test_scene(observer);
+  // Add the validation sphere to the validation scene
+  validation_scene.Add_Object(std::make_unique<Sphere>(validation_sphere));
 
-  // Add the test sphere to the scene
-  test_scene.Add_Object(std::make_unique<Sphere>(sphere1));
-  test_scene.Add_Object(std::make_unique<Sphere>(sphere2));
+  // Initialise the expected radiance to zero
+  Radiance validation_expected_radiance(0.0, 0.0, 0.0);
 
-  std::string filename("Ray_Traced_Image.png");
-  test_scene.Render_Image(filename, 3, 5);
+  for (unsigned i = 0; i < 4; i++)
+  {
+    std::cout << "The validation image with " << i + 1
+              << " bounce(s) will be rendered." << std::endl;
+
+    // Render the validation image
+    Image validation_image = validation_scene.Render_Image(i + 1, 20);
+
+    // Calculate the expected radiance from the infinite series expression for
+    // the analytic solution
+    validation_expected_radiance +=
+      validation_light_emitted(Vec3(0.0, 0.0, 0.0)) *
+      pow(pi * validation_BRDF(
+                 Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0)),
+          int(i));
+
+    // Calculate the L_2 norm of the difference between the expected radiance
+    // and the calculated radiance then output it
+    std::cout << "The L_2 norm of the difference between the expected radiance "
+                 "and the calculated radiance is "
+              << (validation_expected_radiance - validation_image(0, 0)).norm()
+              << std::endl
+              << std::endl;
+  }
 }
