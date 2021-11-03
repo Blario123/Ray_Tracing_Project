@@ -21,7 +21,8 @@
 // Create a type "Radiance" to be a Vec3 containing RGB components
 typedef Vec3 Radiance;
 
-
+// Define the values of pi and the reciprocal of pi (To make dividing by pi
+// faster)
 double pi = M_PI;
 double pi_reciprocal = M_1_PI;
 
@@ -46,7 +47,8 @@ public:
       // If Light_Emitted_Fct_Pt points to a function, evaluate this function
       return (*Light_Emitted_Fct_Pt)(position);
     }
-  }
+  } // End of Light_Emitted
+
 
   // This function returns the Bidirection Reflectance Distribution Function
   // given a position, incident light vector and outgoing light vector.
@@ -66,7 +68,7 @@ public:
       return (*BRDF_Fct_Pt)(
         position, incident_light_vector, outgoing_light_vector);
     }
-  }
+  } // End of BRDF
 
   // This function returns true if a light ray with a given initial position and
   // direction intersects with this object. The third argument (passed by
@@ -89,13 +91,13 @@ public:
   Radiance (*BRDF_Fct_Pt)(const Vec3 &position,
                           const Vec3 &incident_light_vector,
                           const Vec3 &outgoing_light_vector) = 0;
-}; // End of PhysicalObject
+};
 
 
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////// End of PhysicalObject ///////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// Start of Sphere //////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -252,14 +254,20 @@ public:
     }
 
     return normal;
-  }
+  } // End of Orientated_Normal
 
 private:
   // The centre and radius of the sphere
   Vec3 centre;
   double radius;
+};
 
-}; // End of Sphere
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////// End of Sphere ///////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Start of Observer /////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 // The class for the observer
@@ -299,6 +307,7 @@ public:
                  tan(horizontal_field_of_view_angle / 2.0));
   }
 
+
   // When given a pixel, this function will return the normalised vector from
   // the camera to the given pixel on the "grid" in front of the camera
   Ray Ray_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
@@ -315,14 +324,15 @@ public:
     // Normalise this direction vector
     direction_to_pixel.normalise();
 
-
     return Ray(position, direction_to_pixel);
-  }
+  } // End of Ray_To_Pixel_XY
 
+  // Constant access function to the resolution of the camera
   std::vector<unsigned> Get_Resolution() const
   {
+    // Just return the vector containing the resolution
     return resolution;
-  }
+  } // End of Get_Resolution
 
 private:
   // The position of the observer
@@ -351,14 +361,25 @@ private:
 }; // End of Observer
 
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////// End of Observer /////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Start of SceneRender //////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+// The class for the scene containing the functions needed to render the scene
+// as an image
 class SceneRender
 {
 public:
   // Constructor
   SceneRender(Observer &observer_)
   {
+    // Only an observer is required in the construction of a scene
     observer_pt = std::make_unique<Observer>(observer_);
   }
+
 
   // Add objects to the scene via a unique pointer
   void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
@@ -366,27 +387,40 @@ public:
     object_pt_vector.push_back(std::move(object_upt));
   }
 
-  // The same function as above but now accepting rvalues.
+
+  // The same function as above but now accepting rvalues
   void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt)
   {
     object_pt_vector.push_back(std::move(object_upt));
   }
 
+
   // Random hemisphere vector generator
-  Vec3 Random_Vector_Generator(const Vec3 &normal)
+  Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
   {
+    // Get a seed with a random value
     std::random_device random_seed;
 
-    // Create the uniform distribution between -1 and 1
+    // Create a uniform distribution between -1 and 1
     std::default_random_engine generator(random_seed());
     std::uniform_real_distribution<double> distribution(-1.0, 1.0);
 
-    // Create the Vec3 containing the random Vector in the hemisphere
+    // The random vector is instantiated first
     Vec3 random_vector;
 
-    // Keep looping until a suitable vector is found
+    // Keep looping over this algorithm until a suitable vector is found
     while (true)
     {
+      // The purpose of this algorithm is to generate a normal distribution of
+      // points on a unit hemisphere. The hemisphere we have is such that a
+      // vector from the centre to a point on the hemisphere has a positive dot
+      // product with the argument "normal".
+      // The idea of this algorithm is to generate a point from a uniform
+      // distribution inside a 2x2x2 cube, if it is outside the unit sphere
+      // (diameter 2), discard the point, otherwise map it to the hemisphere by
+      // multiplying the position vector of the point with the appropriate
+      // value.
+
       // Set the components of random_vector to random values inside (-1,1)
       random_vector.x = distribution(generator);
       random_vector.y = distribution(generator);
@@ -414,37 +448,42 @@ public:
 
     // Return the random vector
     return random_vector;
-  } // End of random_vector_generator
+  } // End of Hemisphere_Vector_Generator
 
-  Vec3 First_Intersection_Point(const Ray &ray, int &object_intersection_index)
+
+  // Loop over all the objects in the scene and check which object was
+  // intersected with first by the argument Ray "ray".
+  Vec3 First_Intersection_Point(const Ray &light_ray,
+                                int &object_intersection_index)
   {
-    // If there is no intersection between ray and an object, the index will
-    // stay as -1.
+    // If there is no intersection between light_ray and an object, the index
+    // will stay as -1.
     object_intersection_index = -1;
 
-    // A Boolean showing whether ray has been found to intersect with an object
-    // in the scene. Used for knowing when to update smallest_distance.
+    // A Boolean showing whether light_ray has been found to intersect with an
+    // object in the scene. Used for knowing when to update smallest_distance.
     bool found_an_intersection = false;
 
-    // Store the smallest distance from the ray source to an intersection along
-    // with the index of the corresponding object in object_pt_vector.
+    // Store the smallest distance from the light ray source to an intersection
+    // along with the index of the corresponding object in object_pt_vector.
     double smallest_distance = 0.0;
 
-    // Store the distance of the ray to the intersection with the current object
-    // being looped over.
+    // Store the distance of the light ray to the intersection with the current
+    // object being looped over.
     double current_distance = 0.0;
 
     // Loop over every object in the scene to find an intersection
     for (unsigned i = 0; i < object_pt_vector.size(); i++)
     {
       // If an intersection has already been found, check whether this new
-      // intersection is closer to the ray source than the previous closest
-      // intersection.
+      // intersection is closer to the light ray source than the previous
+      // closest intersection.
       if (found_an_intersection)
       {
         // Check whether this intersection is closer than the previous closest
         // one. If so, replace smallest_distance
-        if (object_pt_vector[i]->Intersection_Check(ray, current_distance) &&
+        if (object_pt_vector[i]->Intersection_Check(light_ray,
+                                                    current_distance) &&
             current_distance < smallest_distance)
         {
           smallest_distance = current_distance;
@@ -455,7 +494,8 @@ public:
       // closest intersection so far.
       else
       {
-        if (object_pt_vector[i]->Intersection_Check(ray, current_distance))
+        if (object_pt_vector[i]->Intersection_Check(light_ray,
+                                                    current_distance))
         {
           // This section of code will only be invoked when the first
           // intersection is found.
@@ -474,50 +514,75 @@ public:
       return Vec3(0.0, 0.0, 0.0);
     }
 
-    // Calculate the position of closest intersection between a ray and any
-    // object in the scene.
-    Vec3 vector = ray.Get_Initial_Position() +
-                  smallest_distance * ray.Get_Direction_Vector();
+    // Calculate the position of closest intersection between a light ray and
+    // any object in the scene.
+    Vec3 vector = light_ray.Get_Initial_Position() +
+                  smallest_distance * light_ray.Get_Direction_Vector();
 
     return vector;
   } // End of First_Intersection_Point
 
+
+  // Calculate the radiance coming from the direction of light_ray using the
+  // Light Transport Equation considering the light rays take bounces_remaining
+  // number of bounces.
   Radiance Light_Out(const Ray &light_ray,
                      unsigned bounces_remaining,
                      const unsigned &number_of_random_samples)
   {
+    // If the light ray can't bounce off a single object, no light will reach
+    // the "observer".
     if (bounces_remaining == 0)
     {
       return Radiance(0.0, 0.0, 0.0);
     }
 
+    // Initialise the index of the first object in object_pt_vector hit by
+    // light_ray
     int index_of_object_hit = 0;
 
+    // Find the closest intersection of light_ray with an object along with the
+    // index of the object hit in object_pt_vector
     Vec3 intersection_point =
       First_Intersection_Point(light_ray, index_of_object_hit);
 
+    // If no object was hit according to First_Intersection_Point,
+    // index_of_object_hit will be -1 and therefore no light will be seen
     if (index_of_object_hit == -1)
     {
       return Radiance(0.0, 0.0, 0.0);
     }
 
+    // First, find the light emitted by the object in the direction of light_ray
     Radiance resulting_light =
       object_pt_vector[index_of_object_hit]->Light_Emitted(intersection_point);
 
+    // Find the normal to the surface hit by light_ray at the point of
+    // intersection
     Vec3 normal = object_pt_vector[index_of_object_hit]->Orientated_Normal(
       intersection_point, -light_ray.Get_Direction_Vector());
 
+    // The Monte-Carlo method is used for calculating the light reflected from
+    // an object in a certain direction instead of an integral. This method is
+    // coded below.
     for (unsigned i = 0; i < number_of_random_samples; i++)
     {
-      Vec3 new_direction = Random_Vector_Generator(normal);
+      // Sum up the light reflected in a certain direction from
+      // number_of_random_samples amount of random incident rays
+
+      // Find the direction of a random incident ray onto an object, along with
+      // its point of origin
+      Vec3 new_direction = Hemisphere_Vector_Generator(normal);
       Vec3 new_position = intersection_point + 1.0e-8 * normal;
       Ray new_ray(new_position, new_direction);
 
+      // Find the BRDF of the first object hit by light_ray
       Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
         intersection_point,
         light_ray.Get_Direction_Vector(),
         new_ray.Get_Direction_Vector());
 
+      // Take the mean resulting light of all the random incident rays
       resulting_light +=
         (2.0 * pi * brdf / number_of_random_samples) *
         dot(new_direction, normal) *
@@ -525,25 +590,43 @@ public:
     }
 
     return resulting_light;
-  }
+  } // End of Light_Out
 
+
+  // Render the image and export it to filename.
   void Render_Image(const std::string &filename,
                     const unsigned &number_of_bounces,
                     const unsigned &number_of_random_samples)
   {
+    // Find the resolution of the observer
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct resolution
     Image image(resolution[0], resolution[1]);
 
+    // Initialise variables used for outputting the current progress to the
+    // terminal
     unsigned tenth_percentiles = 0;
     double proportion_done = 0.0;
 
+    // Calculate the radiance of each pixel of the image
     for (unsigned i = 0; i < resolution[0]; i++)
     {
+      // This section of code is for outputting the progress to the terminal
+
+      // Find the proportion of pixels calculated
       proportion_done = double(i + 1) / double(resolution[0]);
+
+      // Every time 10% or more of the pixels have been rendered, print to the
+      // terminal
       if (unsigned(10.0 * proportion_done) > tenth_percentiles)
       {
+        // tenth_percentiles is used to keep track of the last 10th percent
+        // printed
         tenth_percentiles = unsigned(10.0 * proportion_done);
 
+        // The tenth tenth_percentile is 100% so the image will have been
+        // rendered
         if (tenth_percentiles == 10)
         {
           std::cout << "The image has been rendered and will now be exported."
@@ -551,11 +634,13 @@ public:
         }
         else
         {
+          // Update the terminal on the latest 10% done
           std::cout << "Roughly " << 10 * tenth_percentiles
                     << "\% of the pixels have been rendered." << std::endl;
         }
       }
 
+      // Find the radiance at each pixel and set each pixel to this RGB value
       for (unsigned j = 0; j < resolution[1]; j++)
       {
         image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
@@ -564,6 +649,7 @@ public:
       }
     }
 
+    // Save the image as filename
     image.Save(filename);
   }
 
@@ -573,8 +659,14 @@ private:
 
   // A pointer to the Observer of the scene
   std::unique_ptr<Observer> observer_pt;
+};
 
-}; // End of Scene
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// End of SceneRender ////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 // Creating a scene (Just a test for now)
