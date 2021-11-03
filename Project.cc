@@ -375,8 +375,10 @@ public:
   // Random hemisphere vector generator
   Vec3 Random_Vector_Generator(const Vec3 &normal)
   {
+    std::random_device random_seed;
+
     // Create the uniform distribution between -1 and 1
-    std::default_random_engine generator;
+    std::default_random_engine generator(random_seed());
     std::uniform_real_distribution<double> distribution(-1.0, 1.0);
 
     // Create the Vec3 containing the random Vector in the hemisphere
@@ -489,7 +491,7 @@ public:
       return Radiance(0.0, 0.0, 0.0);
     }
 
-    int index_of_object_hit;
+    int index_of_object_hit = 0;
 
     Vec3 intersection_point =
       First_Intersection_Point(light_ray, index_of_object_hit);
@@ -508,7 +510,8 @@ public:
     for (unsigned i = 0; i < number_of_random_samples; i++)
     {
       Vec3 new_direction = Random_Vector_Generator(normal);
-      Ray new_ray(intersection_point, new_direction);
+      Vec3 new_position = intersection_point + 1.0e-8 * normal;
+      Ray new_ray(new_position, new_direction);
 
       Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
         intersection_point,
@@ -524,15 +527,35 @@ public:
     return resulting_light;
   }
 
-  void Render_Image(const unsigned &number_of_bounces,
+  void Render_Image(const std::string &filename,
+                    const unsigned &number_of_bounces,
                     const unsigned &number_of_random_samples)
   {
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
     Image image(resolution[0], resolution[1]);
 
+    unsigned tenth_percentiles = 0;
+    double proportion_done = 0.0;
+
     for (unsigned i = 0; i < resolution[0]; i++)
     {
-      std::cout << i << std::endl;
+      proportion_done = double(i + 1) / double(resolution[0]);
+      if (unsigned(10.0 * proportion_done) > tenth_percentiles)
+      {
+        tenth_percentiles = unsigned(10.0 * proportion_done);
+
+        if (tenth_percentiles == 10)
+        {
+          std::cout << "The image has been rendered and will now be exported."
+                    << std::endl;
+        }
+        else
+        {
+          std::cout << "Roughly " << 10 * tenth_percentiles
+                    << "\% of the pixels have been rendered." << std::endl;
+        }
+      }
+
       for (unsigned j = 0; j < resolution[1]; j++)
       {
         image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
@@ -541,7 +564,7 @@ public:
       }
     }
 
-    image.Save("blah.png");
+    image.Save(filename);
   }
 
 private:
@@ -558,7 +581,7 @@ private:
 
 Radiance test_light_emitted(const Vec3 &position)
 {
-  return Radiance(1.0, 1.0, 1.0);
+  return Radiance(0.5, 0.5, 0.5);
 }
 
 Radiance test_BRDF(const Vec3 &position,
@@ -566,7 +589,7 @@ Radiance test_BRDF(const Vec3 &position,
                    const Vec3 &outgoing_light_vector)
 {
   // Implement the Lambertian BRDF with a reflectivity of 1
-  return Vec3(pi_reciprocal, pi_reciprocal, pi_reciprocal);
+  return Vec3(0.25 * pi_reciprocal, 0.5 * pi_reciprocal, 0.75 * pi_reciprocal);
 }
 
 int main()
@@ -608,5 +631,6 @@ int main()
   test_scene.Add_Object(std::make_unique<Sphere>(sphere1));
   test_scene.Add_Object(std::make_unique<Sphere>(sphere2));
 
-  test_scene.Render_Image(2, 5);
+  std::string filename("Ray_Traced_Image.png");
+  test_scene.Render_Image(filename, 3, 5);
 }
