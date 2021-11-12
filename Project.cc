@@ -22,6 +22,8 @@
 
 #include <functional>
 
+#include <chrono>
+
 const unsigned number_of_threads = std::thread::hardware_concurrency();
 
 // Create a type "Radiance" to be a Vec3 containing RGB components
@@ -608,20 +610,23 @@ public:
 
     image.resize(0);
 
-    unsigned pixel = thread_index;
+    image.reserve(number_of_pixels / number_of_threads);
 
-    // use image.reserve
+    unsigned pixel = thread_index;
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
     while (pixel < number_of_pixels)
     {
-      unsigned pixel_index_i = pixel / resolution[0];
-      unsigned pixel_index_j = pixel % resolution[0];
+      pixel_index_i = pixel % resolution[0];
+      pixel_index_j = pixel / resolution[0];
 
       image.push_back(
         Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
                   number_of_bounces,
                   number_of_random_samples));
 
-      pixel += thread_index;
+      pixel += number_of_threads;
     }
   }
 
@@ -632,20 +637,20 @@ public:
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
     Image image(resolution[0], resolution[1]);
-    {
-      std::vector<std::vector<Radiance>> partitions;
 
-      for (unsigned thread_index = 0; thread_index < number_of_threads;
-           thread_index++)
-      {
-        threads.push_back(std::thread(&SceneRender::Render_Image_Per_Thread,
-                                      this,
-                                      std::ref(partitions[thread_index]),
-                                      number_of_bounces,
-                                      number_of_random_samples,
-                                      thread_index));
-      }
+    std::vector<std::vector<Radiance>> partitions(number_of_threads);
+
+    for (unsigned thread_index = 0; thread_index < number_of_threads;
+         thread_index++)
+    {
+      threads.push_back(std::thread(&SceneRender::Render_Image_Per_Thread,
+                                    this,
+                                    std::ref(partitions[thread_index]),
+                                    number_of_bounces,
+                                    number_of_random_samples,
+                                    thread_index));
     }
+
     for (std::thread &t : threads)
     {
       if (t.joinable())
@@ -653,6 +658,21 @@ public:
         t.join();
       }
     }
+
+    unsigned pixel = 0;
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    while (pixel < resolution[0] * resolution[1])
+    {
+      pixel_index_i = pixel % resolution[0];
+      pixel_index_j = pixel / resolution[0];
+
+      image(pixel_index_i, pixel_index_j) =
+        partitions[pixel % number_of_threads][pixel / number_of_threads];
+      pixel += 1;
+    }
+
     return image;
   }
 
@@ -845,5 +865,19 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere));
   scene.Add_Object(std::make_unique<Sphere>(sphere2));
 
-  scene.Render_Image(3, 100).Save("ping.png");
+  auto start = std::chrono::high_resolution_clock::now();
+
+  scene.Render_Image(3, 100).Save("singlethreaded.png");
+
+  auto single_thread = std::chrono::high_resolution_clock::now();
+
+  scene.Render_Image_Multithreaded(3, 100).Save("multithreaded.png");
+
+  auto multiple_thread = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<double> single = single_thread - start;
+  std::chrono::duration<double> multiple = multiple_thread - single_thread;
+
+  std::cout << single.count() << std::endl;
+  std::cout << multiple.count() << std::endl;
 }
