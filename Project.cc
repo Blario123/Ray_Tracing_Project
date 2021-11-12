@@ -4,6 +4,8 @@
 // Allow usage of std::unique_ptr
 #include <memory>
 
+#include <thread>
+
 // Included for the ability to generate random values from a uniform
 // distribution
 #include <random>
@@ -18,13 +20,17 @@
 // Includes the Ray class
 #include "Ray.h"
 
+#include <functional>
+
+const unsigned number_of_threads = std::thread::hardware_concurrency();
+
 // Create a type "Radiance" to be a Vec3 containing RGB components
 typedef Vec3 Radiance;
 
 // Define the values of pi and the reciprocal of pi (To make dividing by pi
 // faster)
-double pi = M_PI;
-double pi_reciprocal = M_1_PI;
+const double pi = M_PI;
+const double pi_reciprocal = M_1_PI;
 
 // The base class for physical objects present in the scene
 class PhysicalObject
@@ -592,6 +598,63 @@ public:
     return resulting_light;
   } // End of Light_Out
 
+  void Render_Image_Per_Thread(std::vector<Radiance> &image,
+                               const unsigned number_of_bounces,
+                               const unsigned number_of_random_samples,
+                               const unsigned thread_index)
+  {
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+    unsigned number_of_pixels = resolution[0] * resolution[1];
+
+    image.resize(0);
+
+    unsigned pixel = thread_index;
+
+    // use image.reserve
+    while (pixel < number_of_pixels)
+    {
+      unsigned pixel_index_i = pixel / resolution[0];
+      unsigned pixel_index_j = pixel % resolution[0];
+
+      image.push_back(
+        Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+                  number_of_bounces,
+                  number_of_random_samples));
+
+      pixel += thread_index;
+    }
+  }
+
+  Image Render_Image_Multithreaded(const unsigned &number_of_bounces,
+                                   const unsigned &number_of_random_samples)
+  {
+    std::vector<std::thread> threads;
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    Image image(resolution[0], resolution[1]);
+    {
+      std::vector<std::vector<Radiance>> partitions;
+
+      for (unsigned thread_index = 0; thread_index < number_of_threads;
+           thread_index++)
+      {
+        threads.push_back(std::thread(&SceneRender::Render_Image_Per_Thread,
+                                      this,
+                                      std::ref(partitions[thread_index]),
+                                      number_of_bounces,
+                                      number_of_random_samples,
+                                      thread_index));
+      }
+    }
+    for (std::thread &t : threads)
+    {
+      if (t.joinable())
+      {
+        t.join();
+      }
+    }
+    return image;
+  }
 
   // Render the image and export it to filename.
   Image Render_Image(const unsigned &number_of_bounces,
@@ -684,6 +747,25 @@ Radiance validation_BRDF(const Vec3 &position,
   return Vec3(0.25 * pi_reciprocal, 0.5 * pi_reciprocal, 0.75 * pi_reciprocal);
 }
 
+Radiance white_light_emitted(const Vec3 &position)
+{
+  return Radiance(1.0, 1.0, 1.0);
+}
+
+Radiance white_BRDF(const Vec3 &position,
+                    const Vec3 &incident_light_vector,
+                    const Vec3 &outgoing_light_vector)
+{
+  return pi_reciprocal * Radiance(1.0, 1.0, 1.0);
+}
+
+Radiance red_BRDF(const Vec3 &position,
+                  const Vec3 &incident_light_vector,
+                  const Vec3 &outgoing_light_vector)
+{
+  return pi_reciprocal * Radiance(1.0, 0.0, 0.0);
+}
+
 int main()
 {
   // Create an observer for the validation case. This observer is positioned at
@@ -737,4 +819,31 @@ int main()
               << std::endl
               << std::endl;
   }
+
+  std::vector<unsigned> resolution;
+  resolution.push_back(1920);
+  resolution.push_back(1080);
+
+  Observer observer(Vec3(0.0, 0.0, 0.0),
+                    Vec3(1.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 1.0),
+                    90.0,
+                    resolution);
+
+  SceneRender scene(observer);
+
+  Sphere sphere(Vec3(4.0, 0.0, 0.0), 1.0);
+  Sphere sphere2(Vec3(5.0, 2.0, 0.0), 1.0);
+
+  sphere.Light_Emitted_Fct_Pt = white_light_emitted;
+
+  // Set the BRDF of the  sphere to a Lambertian BRDF
+  sphere.BRDF_Fct_Pt = white_BRDF;
+  sphere2.BRDF_Fct_Pt = red_BRDF;
+
+  // Add the  sphere to the  scene
+  scene.Add_Object(std::make_unique<Sphere>(sphere));
+  scene.Add_Object(std::make_unique<Sphere>(sphere2));
+
+  scene.Render_Image(3, 100).Save("ping.png");
 }
