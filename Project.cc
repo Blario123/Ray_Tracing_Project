@@ -1,30 +1,13 @@
-// Define basic input/output stream objects
 #include <iostream>
+#include <memory> // Allow usage of unique pointers
+#include <thread> // Allow usage of threads
+#include <random> // Allow usage of random number generation
+#include <chrono> // Allow usage of timing
 
-// Allow usage of std::unique_ptr
-#include <memory>
-
-#include <thread>
-
-// Included for the ability to generate random values from a uniform
-// distribution
-#include <random>
-
-// Include image write implementation
-#include "Image.h"
-
-// Include 3D vectors (Already included in Image.h but kept here for
-// readability)
-#include "Vec3.h"
-
-// Includes the Ray class
-#include "Ray.h"
-
-#include <functional>
-
-#include <chrono>
-
-const unsigned number_of_threads = std::thread::hardware_concurrency();
+#include "Image.h" // Include image write implementation
+#include "Vec3.h" // Include 3D vectors (Already included in Image.h but kept
+// here for readability)
+#include "Ray.h" // Includes the Ray class
 
 // Create a type "Radiance" to be a Vec3 containing RGB components
 typedef Vec3 Radiance;
@@ -600,57 +583,105 @@ public:
     return resulting_light;
   } // End of Light_Out
 
+
+  // This function should be used purely in Render_Image_Multithreaded, when a
+  // thread is created to do this job, it will find the Radiance of pixels in
+  // such a way that it will work in parallel with other threads. The pixel data
+  // calculated by all the threads are used in Render_Image_Multithreaded to
+  // create the whole picture.
   void Render_Image_Per_Thread(std::vector<Radiance> &image,
                                const unsigned number_of_bounces,
                                const unsigned number_of_random_samples,
-                               const unsigned thread_index)
+                               const unsigned thread_index,
+                               const unsigned number_of_threads)
   {
+    // Get the resolution of the image
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Find the number of pixels there are
     unsigned number_of_pixels = resolution[0] * resolution[1];
 
+    // Make sure that the vector of Radiance is empty
     image.resize(0);
 
+    // Reserve the minimum amount of memory that each vector will need to reduce
+    // the cost of push_back
     image.reserve(number_of_pixels / number_of_threads);
 
-    unsigned pixel = thread_index;
+    // If the rows of pixels from top to bottom in an image were laid end to
+    // end, pixel_index is the index of a pixel in this "vector" of pixels.
+    unsigned pixel_index = thread_index;
+
+    // Initialise variables
     unsigned pixel_index_i = 0;
     unsigned pixel_index_j = 0;
 
-    while (pixel < number_of_pixels)
+    while (pixel_index < number_of_pixels)
     {
-      pixel_index_i = pixel % resolution[0];
-      pixel_index_j = pixel / resolution[0];
+      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
+      // image, this is calculated from pixel_index and the resolution
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
 
+      // Calculate the Radiance of the (i, j)-th pixel
       image.push_back(
         Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
                   number_of_bounces,
                   number_of_random_samples));
 
-      pixel += number_of_threads;
+      // Move on to the pixel that is number_of_threads further so that each
+      // thread works on a different pixel
+      pixel_index += number_of_threads;
     }
   }
 
-  Image Render_Image_Multithreaded(const unsigned &number_of_bounces,
-                                   const unsigned &number_of_random_samples)
+
+  // This function can take in the number of threads to be utilised while
+  // rendering the image. This relies on the function of
+  // Render_Image_Per_Thread.
+  Image Render_Image_Multithreaded(
+    const unsigned &number_of_bounces,
+    const unsigned &number_of_random_samples,
+    const unsigned &number_of_threads = std::thread::hardware_concurrency())
   {
+#ifdef TEST
+    // Check if the number of threads given as an argument is less than or equal
+    // to the number of threads available. If not, reduce number_of_threads to
+    // the maximum possible value.
+    if (number_of_threads > std::thread::hardware_concurrency())
+    {
+      throw std::invalid_argument(
+        "You don't have the number of threads specified in "
+        "Render_Image_Multithreaded available.");
+    }
+#endif
+
+    // Create a vector of threads
     std::vector<std::thread> threads;
+
+    // Get the resolution of the image
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
+    // Create an image of the correct size
     Image image(resolution[0], resolution[1]);
 
+    // Create the vectors of Radiance that each thread will work on
     std::vector<std::vector<Radiance>> partitions(number_of_threads);
 
     for (unsigned thread_index = 0; thread_index < number_of_threads;
          thread_index++)
     {
+      // Create number_of_threads threads to render the pixels of the image
       threads.push_back(std::thread(&SceneRender::Render_Image_Per_Thread,
                                     this,
                                     std::ref(partitions[thread_index]),
                                     number_of_bounces,
                                     number_of_random_samples,
-                                    thread_index));
+                                    thread_index,
+                                    number_of_threads));
     }
 
+    // If a thread is joinable, join it
     for (std::thread &t : threads)
     {
       if (t.joinable())
@@ -659,18 +690,29 @@ public:
       }
     }
 
-    unsigned pixel = 0;
+    // Initialise variables
+    unsigned pixel_index = 0;
     unsigned pixel_index_i = 0;
     unsigned pixel_index_j = 0;
 
-    while (pixel < resolution[0] * resolution[1])
+    // Loop over every pixel in image and find the correct value of Radiance in
+    // partitions to assign to this pixel.
+    while (pixel_index < resolution[0] * resolution[1])
     {
-      pixel_index_i = pixel % resolution[0];
-      pixel_index_j = pixel / resolution[0];
+      // If the rows of pixels from top to bottom of an image were laid end to
+      // end, and the index of a pixel in this "vector" of pixels were given as
+      // pixel_index, find the (i, j)-th index of this pixel in the image.
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
 
+      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to the
+      // correct Radiance value
       image(pixel_index_i, pixel_index_j) =
-        partitions[pixel % number_of_threads][pixel / number_of_threads];
-      pixel += 1;
+        partitions[pixel_index % number_of_threads]
+                  [pixel_index / number_of_threads];
+
+      // Move on to the next pixel
+      pixel_index += 1;
     }
 
     return image;
@@ -867,11 +909,11 @@ int main()
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  scene.Render_Image(3, 100).Save("singlethreaded.png");
+  scene.Render_Image(3, 10).Save("singlethreaded.png");
 
   auto single_thread = std::chrono::high_resolution_clock::now();
 
-  scene.Render_Image_Multithreaded(3, 100).Save("multithreaded.png");
+  scene.Render_Image_Multithreaded(3, 10, 17).Save("multithreaded.png");
 
   auto multiple_thread = std::chrono::high_resolution_clock::now();
 
