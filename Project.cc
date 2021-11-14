@@ -517,9 +517,7 @@ public:
   // Calculate the radiance coming from the direction of light_ray using the
   // Light Transport Equation considering the light rays take bounces_remaining
   // number of bounces.
-  Radiance Light_Out(const Ray &light_ray,
-                     unsigned bounces_remaining,
-                     const unsigned &number_of_random_samples)
+  Radiance Light_Out(const Ray &light_ray, unsigned bounces_remaining)
   {
     // If the light ray can't bounce off a single object, no light will reach
     // the "observer".
@@ -553,43 +551,33 @@ public:
     Vec3 normal = object_pt_vector[index_of_object_hit]->Orientated_Normal(
       intersection_point, -light_ray.Get_Direction_Vector());
 
-    // The Monte-Carlo method is used for calculating the light reflected from
-    // an object in a certain direction instead of an integral. This method is
-    // coded below.
-    for (unsigned i = 0; i < number_of_random_samples; i++)
-    {
-      // Sum up the light reflected in a certain direction from
-      // number_of_random_samples amount of random incident rays
+    // Find the direction of a random incident ray onto an object, along with
+    // its point of origin
+    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
+    Vec3 new_position = intersection_point + 1.0e-8 * normal;
+    Ray new_ray(new_position, new_direction);
 
-      // Find the direction of a random incident ray onto an object, along with
-      // its point of origin
-      Vec3 new_direction = Hemisphere_Vector_Generator(normal);
-      Vec3 new_position = intersection_point + 1.0e-8 * normal;
-      Ray new_ray(new_position, new_direction);
+    // Find the BRDF of the first object hit by light_ray
+    Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
+      intersection_point,
+      light_ray.Get_Direction_Vector(),
+      new_ray.Get_Direction_Vector());
 
-      // Find the BRDF of the first object hit by light_ray
-      Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
-        intersection_point,
-        light_ray.Get_Direction_Vector(),
-        new_ray.Get_Direction_Vector());
+    // Add the radiance from all the objects the light ray hits as it bounces a
+    // fixed amount of times
+    resulting_light += (2.0 * pi * brdf) * dot(new_direction, normal) *
+                       Light_Out(new_ray, bounces_remaining - 1);
 
-      // Take the mean resulting light of all the random incident rays
-      resulting_light +=
-        (2.0 * pi * brdf / number_of_random_samples) *
-        dot(new_direction, normal) *
-        Light_Out(new_ray, bounces_remaining - 1, number_of_random_samples);
-    }
 
     return resulting_light;
   } // End of Light_Out
 
-
   // This function should be used purely in Render_Image_Multithreaded, when a
   // thread is created to do this job, it will find the Radiance of pixels in
-  // such a way that it will work in parallel with other threads. The pixel data
-  // calculated by all the threads are used in Render_Image_Multithreaded to
-  // create the whole picture.
-  void Render_Image_Per_Thread(std::vector<Radiance> &image,
+  // such a way that it will work in parallel with other threads. The pixel
+  // data calculated by all the threads are used in Render_Image_Multithreaded
+  // to create the whole picture.
+  void Render_Image_Per_Thread(std::vector<Radiance> &partition,
                                const unsigned number_of_bounces,
                                const unsigned number_of_random_samples,
                                const unsigned thread_index,
@@ -602,17 +590,18 @@ public:
     unsigned number_of_pixels = resolution[0] * resolution[1];
 
     // Make sure that the vector of Radiance is empty
-    image.resize(0);
+    partition.resize(0);
 
-    // Reserve the minimum amount of memory that each vector will need to reduce
-    // the cost of push_back
-    image.reserve(number_of_pixels / number_of_threads);
+    // Reserve the minimum amount of memory that each vector will need to
+    // reduce the cost of push_back
+    partition.reserve(number_of_pixels / number_of_threads);
 
     // If the rows of pixels from top to bottom in an image were laid end to
     // end, pixel_index is the index of a pixel in this "vector" of pixels.
     unsigned pixel_index = thread_index;
 
     // Initialise variables
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
     unsigned pixel_index_i = 0;
     unsigned pixel_index_j = 0;
 
@@ -623,11 +612,21 @@ public:
       pixel_index_i = pixel_index % resolution[0];
       pixel_index_j = pixel_index / resolution[0];
 
-      // Calculate the Radiance of the (i, j)-th pixel
-      image.push_back(
-        Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-                  number_of_bounces,
-                  number_of_random_samples));
+      // Set the radiance to zero for each pixel before calculating the radiance
+      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+      // Take the total radiance for a pixel over number_of_random_samples
+      // light rays
+      for (unsigned i = 0; i < number_of_random_samples; i++)
+      {
+        pixel_radiance +=
+          Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+                    number_of_bounces);
+      }
+
+      // Set the RGB value of this pixel to the average radiance over all the
+      // rays traced
+      partition.push_back(pixel_radiance / number_of_random_samples);
 
       // Move on to the pixel that is number_of_threads further so that each
       // thread works on a different pixel
@@ -645,9 +644,17 @@ public:
     const unsigned &number_of_threads = std::thread::hardware_concurrency())
   {
 #ifdef TEST
-    // Check if the number of threads given as an argument is less than or equal
-    // to the number of threads available. If not, reduce number_of_threads to
-    // the maximum possible value.
+    // If no random samples are taken, no image will be produced and a division
+    // by zero may occur so we throw an error
+    if (number_of_random_samples == 0)
+    {
+      throw std::invalid_argument(
+        "The number of random samples may not be chosen as zero");
+    }
+
+    // Check if the number of threads given as an argument is less than or
+    // equal to the number of threads available. If not, reduce
+    // number_of_threads to the maximum possible value.
     if (number_of_threads > std::thread::hardware_concurrency())
     {
       throw std::invalid_argument(
@@ -695,18 +702,18 @@ public:
     unsigned pixel_index_i = 0;
     unsigned pixel_index_j = 0;
 
-    // Loop over every pixel in image and find the correct value of Radiance in
-    // partitions to assign to this pixel.
+    // Loop over every pixel in image and find the correct value of Radiance
+    // in partitions to assign to this pixel.
     while (pixel_index < resolution[0] * resolution[1])
     {
-      // If the rows of pixels from top to bottom of an image were laid end to
-      // end, and the index of a pixel in this "vector" of pixels were given as
-      // pixel_index, find the (i, j)-th index of this pixel in the image.
+      // If the rows of pixels from top to bottom of an image were laid end
+      // to end, and the index of a pixel in this "vector" of pixels were given
+      // as pixel_index, find the (i, j)-th index of this pixel in the image.
       pixel_index_i = pixel_index % resolution[0];
       pixel_index_j = pixel_index / resolution[0];
 
-      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to the
-      // correct Radiance value
+      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
+      // the correct Radiance value
       image(pixel_index_i, pixel_index_j) =
         partitions[pixel_index % number_of_threads]
                   [pixel_index / number_of_threads];
@@ -718,15 +725,28 @@ public:
     return image;
   }
 
+
   // Render the image and export it to filename.
   Image Render_Image(const unsigned &number_of_bounces,
                      const unsigned &number_of_random_samples)
   {
+#ifdef TEST
+    // If no random samples are taken, no image will be produced and a division
+    // by zero may occur so we throw an error
+    if (number_of_random_samples == 0)
+    {
+      throw std::invalid_argument(
+        "The number of random samples may not be chosen as zero");
+    }
+#endif
     // Find the resolution of the observer
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
     // Create an image of the correct resolution
     Image image(resolution[0], resolution[1]);
+
+    // Create storage for the radiance at each pixel
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
 
     // Initialise variables used for outputting the current progress to the
     // terminal
@@ -766,9 +786,21 @@ public:
       // Find the radiance at each pixel and set each pixel to this RGB value
       for (unsigned j = 0; j < resolution[1]; j++)
       {
-        image(i, j) = Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
-                                number_of_bounces,
-                                number_of_random_samples);
+        // Set the radiance at each pixel to zero before calculating the
+        // radiance
+        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+        // Sum up the radiance of multiple light rays "shot out" from the camera
+        // in the direction of this pixel
+        for (unsigned k = 0; k < number_of_random_samples; k++)
+        {
+          pixel_radiance +=
+            Light_Out(observer_pt->Ray_To_Pixel_XY(i, j), number_of_bounces);
+        }
+
+        // Set the RGB value of this pixel to the average radiance over the
+        // number of light rays shot out
+        image(i, j) = pixel_radiance / number_of_random_samples;
       }
     }
 
@@ -899,21 +931,22 @@ int main()
 
   sphere.Light_Emitted_Fct_Pt = white_light_emitted;
 
-  // Set the BRDF of the  sphere to a Lambertian BRDF
+  // Set the BRDF of the sphere to a Lambertian BRDF
   sphere.BRDF_Fct_Pt = white_BRDF;
   sphere2.BRDF_Fct_Pt = red_BRDF;
 
-  // Add the  sphere to the  scene
+  // Add the sphere to the scene
   scene.Add_Object(std::make_unique<Sphere>(sphere));
   scene.Add_Object(std::make_unique<Sphere>(sphere2));
 
+
   auto start = std::chrono::high_resolution_clock::now();
 
-  scene.Render_Image(3, 10).Save("singlethreaded.png");
+  scene.Render_Image(2, 10).Save("singlethreaded.png");
 
   auto single_thread = std::chrono::high_resolution_clock::now();
 
-  scene.Render_Image_Multithreaded(3, 10, 17).Save("multithreaded.png");
+  scene.Render_Image_Multithreaded(2, 100).Save("multithreaded.png");
 
   auto multiple_thread = std::chrono::high_resolution_clock::now();
 
