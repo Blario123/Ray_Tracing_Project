@@ -572,6 +572,70 @@ public:
     return resulting_light;
   } // End of Light_Out
 
+
+  // Calculate the radiance coming from the direction of light_ray using the
+  // Light Transport Equation with Russian Roulette implemented
+  Radiance Light_Out_Russian(const Ray &light_ray)
+  {
+    // Initialise the index of the first object in object_pt_vector hit by
+    // light_ray
+    int index_of_object_hit = 0;
+
+    // Find the closest intersection of light_ray with an object along with the
+    // index of the object hit in object_pt_vector
+    Vec3 intersection_point =
+      First_Intersection_Point(light_ray, index_of_object_hit);
+
+    // If no object was hit according to First_Intersection_Point,
+    // index_of_object_hit will be -1 and therefore no light will be seen
+    if (index_of_object_hit == -1)
+    {
+      return Radiance(0.0, 0.0, 0.0);
+    }
+
+    // First, find the light emitted by the object in the direction of light_ray
+    Radiance resulting_light =
+      object_pt_vector[index_of_object_hit]->Light_Emitted(intersection_point);
+
+    // Find the normal to the surface hit by light_ray at the point of
+    // intersection
+    Vec3 normal = object_pt_vector[index_of_object_hit]->Orientated_Normal(
+      intersection_point, -light_ray.Get_Direction_Vector());
+
+    // Find the direction of a random incident ray onto an object, along with
+    // its point of origin
+    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
+    Vec3 new_position = intersection_point + 1.0e-8 * normal;
+    Ray new_ray(new_position, new_direction);
+
+    // Choose the termination chance of a bounce based on the reflected
+    // direction
+    double reflected_angle = dot(new_direction, normal);
+
+    // Create a uniform distribution between 0 and 1.
+    std::random_device random_seed;
+    std::default_random_engine generator(random_seed());
+    std::uniform_real_distribution<double> distribution(0.0, 1.0);
+
+    // Find the BRDF of the first object hit by light_ray
+    Vec3 brdf = object_pt_vector[index_of_object_hit]->BRDF(
+      intersection_point,
+      light_ray.Get_Direction_Vector(),
+      new_ray.Get_Direction_Vector());
+
+    // Enforce a termination probability on the ray.
+    if (distribution(generator) < reflected_angle)
+    {
+      // Add the radiance from all the objects the light ray hits as it bounces
+      // a fixed amount of times
+      resulting_light += (2.0 * pi * brdf) * dot(new_direction, normal) *
+                         Light_Out_Russian(new_ray);
+    }
+
+    return resulting_light;
+  } // End of Light_Out
+
+
   // This function should be used purely in Render_Image_Multithreaded, when a
   // thread is created to do this job, it will find the Radiance of pixels in
   // such a way that it will work in parallel with other threads. The pixel
@@ -622,6 +686,67 @@ public:
         pixel_radiance +=
           Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
                     number_of_bounces);
+      }
+
+      // Set the RGB value of this pixel to the average radiance over all the
+      // rays traced
+      partition.push_back(pixel_radiance / number_of_random_samples);
+
+      // Move on to the pixel that is number_of_threads further so that each
+      // thread works on a different pixel
+      pixel_index += number_of_threads;
+    }
+  }
+
+
+  // This function should be used purely in Render_Image_Multithreaded_Russian,
+  // when a thread is created to do this job, it will find the Radiance of
+  // pixels in such a way that it will work in parallel with other threads. The
+  // pixel data calculated by all the threads are used in
+  // Render_Image_Multithreaded_Russian to create the whole picture.
+  void Render_Image_Per_Thread_Russian(std::vector<Radiance> &partition,
+                                       const unsigned number_of_random_samples,
+                                       const unsigned thread_index,
+                                       const unsigned number_of_threads)
+  {
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Find the number of pixels there are
+    unsigned number_of_pixels = resolution[0] * resolution[1];
+
+    // Make sure that the vector of Radiance is empty
+    partition.resize(0);
+
+    // Reserve the minimum amount of memory that each vector will need to
+    // reduce the cost of push_back
+    partition.reserve(number_of_pixels / number_of_threads);
+
+    // If the rows of pixels from top to bottom in an image were laid end to
+    // end, pixel_index is the index of a pixel in this "vector" of pixels.
+    unsigned pixel_index = thread_index;
+
+    // Initialise variables
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    while (pixel_index < number_of_pixels)
+    {
+      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
+      // image, this is calculated from pixel_index and the resolution
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the radiance to zero for each pixel before calculating the radiance
+      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+      // Take the total radiance for a pixel over number_of_random_samples
+      // light rays
+      for (unsigned i = 0; i < number_of_random_samples; i++)
+      {
+        pixel_radiance += Light_Out_Russian(
+          observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j));
       }
 
       // Set the RGB value of this pixel to the average radiance over all the
@@ -686,6 +811,96 @@ public:
                                     number_of_random_samples,
                                     thread_index,
                                     number_of_threads));
+    }
+
+    // If a thread is joinable, join it
+    for (std::thread &t : threads)
+    {
+      if (t.joinable())
+      {
+        t.join();
+      }
+    }
+
+    // Initialise variables
+    unsigned pixel_index = 0;
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    // Loop over every pixel in image and find the correct value of Radiance
+    // in partitions to assign to this pixel.
+    while (pixel_index < resolution[0] * resolution[1])
+    {
+      // If the rows of pixels from top to bottom of an image were laid end
+      // to end, and the index of a pixel in this "vector" of pixels were given
+      // as pixel_index, find the (i, j)-th index of this pixel in the image.
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
+      // the correct Radiance value
+      image(pixel_index_i, pixel_index_j) =
+        partitions[pixel_index % number_of_threads]
+                  [pixel_index / number_of_threads];
+
+      // Move on to the next pixel
+      pixel_index += 1;
+    }
+
+    return image;
+  }
+
+
+  // This function can take in the number of threads to be utilised while
+  // rendering the image. This relies on the function of
+  // Render_Image_Per_Thread_Russian.
+  Image Render_Image_Multithreaded_Russian(
+    const unsigned &number_of_random_samples,
+    const unsigned &number_of_threads = std::thread::hardware_concurrency())
+  {
+#ifdef TEST
+    // If no random samples are taken, no image will be produced and a division
+    // by zero may occur so we throw an error
+    if (number_of_random_samples == 0)
+    {
+      throw std::invalid_argument(
+        "The number of random samples may not be chosen as zero");
+    }
+
+    // Check if the number of threads given as an argument is less than or
+    // equal to the number of threads available. If not, reduce
+    // number_of_threads to the maximum possible value.
+    if (number_of_threads > std::thread::hardware_concurrency())
+    {
+      throw std::invalid_argument(
+        "You don't have the number of threads specified in "
+        "Render_Image_Multithreaded available.");
+    }
+#endif
+
+    // Create a vector of threads
+    std::vector<std::thread> threads;
+
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct size
+    Image image(resolution[0], resolution[1]);
+
+    // Create the vectors of Radiance that each thread will work on
+    std::vector<std::vector<Radiance>> partitions(number_of_threads);
+
+    for (unsigned thread_index = 0; thread_index < number_of_threads;
+         thread_index++)
+    {
+      // Create number_of_threads threads to render the pixels of the image
+      threads.push_back(
+        std::thread(&SceneRender::Render_Image_Per_Thread_Russian,
+                    this,
+                    std::ref(partitions[thread_index]),
+                    number_of_random_samples,
+                    thread_index,
+                    number_of_threads));
     }
 
     // If a thread is joinable, join it
@@ -841,9 +1056,18 @@ Radiance validation_BRDF(const Vec3 &position,
   return Vec3(0.25 * pi_reciprocal, 0.5 * pi_reciprocal, 0.75 * pi_reciprocal);
 }
 
-Radiance white_light_emitted(const Vec3 &position)
+Radiance red_BRDF(const Vec3 &position,
+                  const Vec3 &incident_light_vector,
+                  const Vec3 &outgoing_light_vector)
 {
-  return Radiance(1.0, 1.0, 1.0);
+  return pi_reciprocal * Radiance(1.0, 0.0, 0.0);
+}
+
+Radiance blue_BRDF(const Vec3 &position,
+                   const Vec3 &incident_light_vector,
+                   const Vec3 &outgoing_light_vector)
+{
+  return pi_reciprocal * Radiance(0.0, 0.0, 1.0);
 }
 
 Radiance white_BRDF(const Vec3 &position,
@@ -853,11 +1077,31 @@ Radiance white_BRDF(const Vec3 &position,
   return pi_reciprocal * Radiance(1.0, 1.0, 1.0);
 }
 
-Radiance red_BRDF(const Vec3 &position,
-                  const Vec3 &incident_light_vector,
-                  const Vec3 &outgoing_light_vector)
+Radiance pink_BRDF(const Vec3 &position,
+                   const Vec3 &incident_light_vector,
+                   const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(1.0, 0.0, 0.0);
+  return pi_reciprocal * Radiance(1.0, 0.0, 1.0);
+}
+
+Radiance purple_BRDF(const Vec3 &position,
+                     const Vec3 &incident_light_vector,
+                     const Vec3 &outgoing_light_vector)
+{
+  return pi_reciprocal * Radiance(191.0, 64.0, 191.0) / 255.0;
+}
+
+Radiance ceiling_light_emitted(const Vec3 &position)
+{
+  if (position.x < 0.385 && position.x > 0.315 && position.y < 0.035 &&
+      position.y > -0.035)
+  {
+    return Radiance(3.0, 3.0, 3.0);
+  }
+  else
+  {
+    return Radiance(0.0, 0.0, 0.0);
+  }
 }
 
 int main()
@@ -891,11 +1135,12 @@ int main()
 
   for (unsigned i = 0; i < 4; i++)
   {
-    std::cout << "The validation image with " << i + 1
+    std::cout << "The validation image with " << i * 10
               << " bounce(s) will be rendered." << std::endl;
 
     // Render the validation image
-    Image validation_image = validation_scene.Render_Image(i + 1, 20);
+    Image validation_image =
+      validation_scene.Render_Image_Multithreaded_Russian(i * 10);
 
     // Calculate the expected radiance from the infinite series expression for
     // the analytic solution
@@ -915,44 +1160,44 @@ int main()
   }
 
   std::vector<unsigned> resolution;
-  resolution.push_back(1920);
+  resolution.push_back(1280);
   resolution.push_back(1080);
 
-  Observer observer(Vec3(0.0, 0.0, 0.0),
+  Observer observer(Vec3(0.0, 0.0, 1.0),
                     Vec3(1.0, 0.0, 0.0),
                     Vec3(0.0, 0.0, 1.0),
-                    90.0,
+                    pi / 3.0,
                     resolution);
 
   SceneRender scene(observer);
 
-  Sphere sphere(Vec3(4.0, 0.0, 0.0), 1.0);
-  Sphere sphere2(Vec3(5.0, 2.0, 0.0), 1.0);
+  double radius = 1000.0;
 
-  sphere.Light_Emitted_Fct_Pt = white_light_emitted;
+  Sphere floor(Vec3(1.0, 0.0, 0.9 - radius), radius);
+  Sphere ceiling(Vec3(2.5, 0.0, 1.1 + radius), radius);
+  Sphere left_wall(Vec3(2.5, radius + 0.1, 2.5), radius);
+  Sphere right_wall(Vec3(2.5, -radius - 0.1, 2.5), radius);
+  Sphere back_wall(Vec3(radius + 0.5, 0.0, 2.5), radius);
+  Sphere sphere_1(Vec3(0.25, 0.05, 0.93), 0.03);
+  Sphere sphere_2(Vec3(0.4, -0.035, 0.95), 0.05);
 
-  // Set the BRDF of the sphere to a Lambertian BRDF
-  sphere.BRDF_Fct_Pt = white_BRDF;
-  sphere2.BRDF_Fct_Pt = red_BRDF;
+  floor.BRDF_Fct_Pt = white_BRDF;
+  ceiling.BRDF_Fct_Pt = white_BRDF;
+  left_wall.BRDF_Fct_Pt = red_BRDF;
+  right_wall.BRDF_Fct_Pt = blue_BRDF;
+  back_wall.BRDF_Fct_Pt = white_BRDF;
+  sphere_1.BRDF_Fct_Pt = pink_BRDF;
+  sphere_2.BRDF_Fct_Pt = purple_BRDF;
 
-  // Add the sphere to the scene
-  scene.Add_Object(std::make_unique<Sphere>(sphere));
-  scene.Add_Object(std::make_unique<Sphere>(sphere2));
+  ceiling.Light_Emitted_Fct_Pt = ceiling_light_emitted;
 
+  scene.Add_Object(std::make_unique<Sphere>(floor));
+  scene.Add_Object(std::make_unique<Sphere>(ceiling));
+  scene.Add_Object(std::make_unique<Sphere>(left_wall));
+  scene.Add_Object(std::make_unique<Sphere>(right_wall));
+  scene.Add_Object(std::make_unique<Sphere>(back_wall));
+  scene.Add_Object(std::make_unique<Sphere>(sphere_1));
+  scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  auto start = std::chrono::high_resolution_clock::now();
-
-  scene.Render_Image(2, 10).Save("singlethreaded.png");
-
-  auto single_thread = std::chrono::high_resolution_clock::now();
-
-  scene.Render_Image_Multithreaded(2, 100).Save("multithreaded.png");
-
-  auto multiple_thread = std::chrono::high_resolution_clock::now();
-
-  std::chrono::duration<double> single = single_thread - start;
-  std::chrono::duration<double> multiple = multiple_thread - single_thread;
-
-  std::cout << single.count() << std::endl;
-  std::cout << multiple.count() << std::endl;
+  scene.Render_Image_Multithreaded_Russian(1000, 15).Save("Cornell_Box_3.png");
 }
