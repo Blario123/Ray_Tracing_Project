@@ -628,8 +628,7 @@ public:
     {
       // Add the radiance from all the objects the light ray hits as it bounces
       // a fixed amount of times
-      resulting_light += (2.0 * pi * brdf) * dot(new_direction, normal) *
-                         Light_Out_Russian(new_ray);
+      resulting_light += (2.0 * pi * brdf) * Light_Out_Russian(new_ray);
     }
 
     return resulting_light;
@@ -1043,7 +1042,7 @@ private:
 Radiance validation_light_emitted(const Vec3 &position)
 {
   // Return this random RGB radiance value
-  return Radiance(0.1, 0.4, 0.8);
+  return Radiance(0.125, 0.0, 0.0);
 }
 
 // Create a BRDF for the validation case
@@ -1053,7 +1052,7 @@ Radiance validation_BRDF(const Vec3 &position,
 {
   // Implement the Lambertian BRDF with a reflectivity of (0.25, 0.5, 0.75) in
   // the RGB components
-  return Vec3(0.25 * pi_reciprocal, 0.5 * pi_reciprocal, 0.75 * pi_reciprocal);
+  return Vec3(0.25 * pi_reciprocal, 0.0, 0.0);
 }
 
 Radiance red_BRDF(const Vec3 &position,
@@ -1104,6 +1103,7 @@ Radiance ceiling_light_emitted(const Vec3 &position)
   }
 }
 
+
 int main()
 {
   // Create an observer for the validation case. This observer is positioned at
@@ -1113,7 +1113,7 @@ int main()
   Observer validation_observer(Vec3(0.0, 0.0, 0.0),
                                Vec3(1.0, 0.0, 0.0),
                                Vec3(0.0, 0.0, 1.0),
-                               90.0,
+                               pi,
                                std::vector<unsigned>(2, 1.0));
 
   SceneRender validation_scene(validation_observer);
@@ -1130,38 +1130,24 @@ int main()
   // Add the validation sphere to the validation scene
   validation_scene.Add_Object(std::make_unique<Sphere>(validation_sphere));
 
-  // Initialise the expected radiance to zero
-  Radiance validation_expected_radiance(0.0, 0.0, 0.0);
+  Vec3 denominator =
+    Vec3(1.0, 1.0, 1.0) - pi * validation_BRDF(Vec3(), Vec3(), Vec3());
 
-  for (unsigned i = 0; i < 4; i++)
-  {
-    std::cout << "The validation image with " << i * 10
-              << " bounce(s) will be rendered." << std::endl;
+  Vec3 numerator = validation_light_emitted(Vec3());
 
-    // Render the validation image
-    Image validation_image =
-      validation_scene.Render_Image_Multithreaded_Russian(i * 10);
+  Vec3 result(numerator.x / denominator.x,
+              numerator.y / denominator.y,
+              numerator.z / denominator.z);
 
-    // Calculate the expected radiance from the infinite series expression for
-    // the analytic solution
-    validation_expected_radiance +=
-      validation_light_emitted(Vec3(0.0, 0.0, 0.0)) *
-      pow(pi * validation_BRDF(
-                 Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0)),
-          int(i));
+  std::cout << result << std::endl;
 
-    // Calculate the L_2 norm of the difference between the expected radiance
-    // and the calculated radiance then output it
-    std::cout << "The L_2 norm of the difference between the expected radiance "
-                 "and the calculated radiance is "
-              << (validation_expected_radiance - validation_image(0, 0)).norm()
-              << std::endl
-              << std::endl;
-  }
+  std::cout << validation_scene.Render_Image_Multithreaded_Russian(100)(0, 0)
+            << std::endl;
+
 
   std::vector<unsigned> resolution;
-  resolution.push_back(1280);
-  resolution.push_back(1080);
+  resolution.push_back(128);
+  resolution.push_back(108);
 
   Observer observer(Vec3(0.0, 0.0, 1.0),
                     Vec3(1.0, 0.0, 0.0),
@@ -1199,5 +1185,5 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  scene.Render_Image_Multithreaded_Russian(1000, 15).Save("Cornell_Box_3.png");
+  scene.Render_Image_Multithreaded_Russian(1000).Save("Cornell_Box_3.png");
 }

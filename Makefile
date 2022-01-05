@@ -1,5 +1,5 @@
 Project: Project.cc
-	g++ Project.cc -o Project -pthread
+	g++ -std=c++20 Project.cc -o Project -pthread
 
 TestProject: Project.cc
-	g++ Project.cc -DTEST -o TestProject -pthread
+	g++ -std=c++20 Project.cc -DTEST -o TestProject -pthread
