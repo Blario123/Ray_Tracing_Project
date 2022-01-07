@@ -3,6 +3,7 @@
 #include <thread> // Allow usage of threads
 #include <random> // Allow usage of random number generation
 #include <chrono> // Allow usage of timing
+#include <fstream> // Allow output to file
 
 #include "Image.h" // Include image write implementation
 #include "Vec3.h" // Include 3D vectors (Already included in Image.h but kept
@@ -1038,14 +1039,16 @@ private:
 
 
 // Validation case
-// Create a light emitted function for the validation case
+// Create a light emitted function for the validation case (Only the x_value
+// shall be non-zero for convenience)
 Radiance validation_light_emitted(const Vec3 &position)
 {
   // Return this random RGB radiance value
   return Radiance(0.125, 0.0, 0.0);
 }
 
-// Create a BRDF for the validation case
+// Create a BRDF for the validation case (Only the x_value shall be non-zero for
+// convenience)
 Radiance validation_BRDF(const Vec3 &position,
                          const Vec3 &incident_light_vector,
                          const Vec3 &outgoing_light_vector)
@@ -1130,20 +1133,53 @@ int main()
   // Add the validation sphere to the validation scene
   validation_scene.Add_Object(std::make_unique<Sphere>(validation_sphere));
 
-  Vec3 denominator =
-    Vec3(1.0, 1.0, 1.0) - pi * validation_BRDF(Vec3(), Vec3(), Vec3());
+  // Find the analytical solution to the LTE for the validation case
+  double result = validation_light_emitted(Vec3()).x /
+                  (1.0 - pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x);
 
-  Vec3 numerator = validation_light_emitted(Vec3());
+  // Store variables used in working out the variance of the "empirical" method
+  double variance = 0.0;
+  unsigned number_of_variance_samples = 100;
+  unsigned max_camera_samples = 1000;
 
-  Vec3 result(numerator.x / denominator.x,
-              numerator.y / denominator.y,
-              numerator.z / denominator.z);
+  // Open a file to store results in
+  std::ofstream validation_results_file;
+  validation_results_file.open("Validation_results.dat");
 
-  std::cout << result << std::endl;
+  // Output the name of each column at the top of the file
+  validation_results_file.width(20);
+  validation_results_file << "No. camera samples";
+  validation_results_file.width(20);
+  validation_results_file << "Variance" << std::endl;
+  validation_results_file << std::fixed;
 
-  std::cout << validation_scene.Render_Image_Multithreaded_Russian(100)(0, 0)
-            << std::endl;
+  // Loop over a range of number of camera samples
+  for (unsigned i = 1; i < (max_camera_samples / 10); i++)
+  {
+    // Reset the variance after each value of number of camera samples worked on
+    variance = 0.0;
 
+    // Find the variance over number_of_variance_samples number of samples
+    for (unsigned j = 0; j < number_of_variance_samples; j++)
+    {
+      // Inside of sum of variance formula
+      variance += pow(
+        validation_scene.Render_Image_Multithreaded_Russian(i)(0, 0).x - result,
+        2);
+    }
+    // Divide by number of samples to get the variance
+    variance /= number_of_variance_samples;
+
+    // Output the number of camera samples used and the respective variance in
+    // separate columns
+    validation_results_file.width(20);
+    validation_results_file << 10 * i;
+    validation_results_file.width(20);
+    validation_results_file.precision(16);
+    validation_results_file << variance << std::endl;
+  }
+
+  validation_results_file.close();
 
   std::vector<unsigned> resolution;
   resolution.push_back(128);
@@ -1185,5 +1221,5 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  scene.Render_Image_Multithreaded_Russian(1000).Save("Cornell_Box_3.png");
+  // scene.Render_Image_Multithreaded_Russian(1).Save("Cornell_Box_3.png");
 }

@@ -2,6 +2,7 @@
 !*.*
 *.aux
 *.log
+*.dat
 LaTeX_Report_Files/*.pdf
 *.synctex.gz*
 !LaTeX_Report_Files/
