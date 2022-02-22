@@ -566,7 +566,7 @@ public:
 
     // Add the radiance from all the objects the light ray hits as it bounces a
     // fixed amount of times
-    resulting_light += (2.0 * pi * brdf) * dot(new_direction, normal) *
+    resulting_light += 2.0 * pi * brdf * dot(new_direction, normal) *
                        Light_Out(new_ray, bounces_remaining - 1);
 
 
@@ -1022,6 +1022,44 @@ public:
     return image;
   }
 
+
+  // This function should be used purely in Render_Image_Multithreaded_Russian,
+  // when a thread is created to do this job, it will find the Radiance of
+  // pixels in such a way that it will work in parallel with other threads. The
+  // pixel data calculated by all the threads are used in
+  // Render_Image_Multithreaded_Russian to create the whole picture.
+  Image Render_Image_Russian(const unsigned number_of_random_samples)
+  {
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct resolution
+    Image image(resolution[0], resolution[1]);
+
+    // Create storage for the radiance at each pixel
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+
+    for (unsigned i = 0; i < resolution[0]; i++)
+    {
+      for (unsigned j = 0; j < resolution[1]; j++)
+      {
+        pixel_radiance.x = 0.0;
+        pixel_radiance.y = 0.0;
+        pixel_radiance.z = 0.0;
+
+        for (unsigned k = 0; k < number_of_random_samples; k++)
+        {
+          pixel_radiance +=
+            Light_Out_Russian(observer_pt->Ray_To_Pixel_XY(i, j));
+        }
+
+        image(i, j) = pixel_radiance / number_of_random_samples;
+      }
+    }
+
+    return image;
+  }
+
 private:
   // A vector containing pointers to the physical objects in the scene
   std::vector<std::unique_ptr<PhysicalObject>> object_pt_vector;
@@ -1032,18 +1070,19 @@ private:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// End of SceneRender ////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////// Start of Validation Case ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 
+#ifdef VALIDATE
 // Validation case
 // Create a light emitted function for the validation case (Only the x_value
 // shall be non-zero for convenience)
 Radiance validation_light_emitted(const Vec3 &position)
 {
-  // Return this random RGB radiance value
+  // Return this arbitrarily chosen RGB radiance value
   return Radiance(0.125, 0.0, 0.0);
 }
 
@@ -1055,8 +1094,97 @@ Radiance validation_BRDF(const Vec3 &position,
 {
   // Implement the Lambertian BRDF with a reflectivity of (0.25, 0.5, 0.75) in
   // the RGB components
-  return Vec3(0.25 * pi_reciprocal, 0.0, 0.0);
+  return Vec3(0.5 * pi_reciprocal, 0.0, 0.0);
 }
+
+int main()
+{
+  // Create an observer for the validation case. This observer is positioned at
+  // the origin, faces towards positive x with upwards orientated with the
+  // z-axis. The horizontal field of view is 90 degrees, and the resolution of
+  // the image is 1x1.
+  Observer validation_observer(Vec3(0.0, 0.0, 0.0),
+                               Vec3(1.0, 0.0, 0.0),
+                               Vec3(0.0, 0.0, 1.0),
+                               pi,
+                               std::vector<unsigned>(2, 1));
+
+  // Create the scene
+  SceneRender validation_scene(validation_observer);
+
+  // Create a single sphere for the validation case
+  Sphere validation_sphere(Vec3(0.0, 0.0, 0.0), 1.0);
+
+  // Set the light emitted by this validation sphere
+  validation_sphere.Light_Emitted_Fct_Pt = validation_light_emitted;
+
+  // Set the BRDF of the validation sphere to a Lambertian BRDF
+  validation_sphere.BRDF_Fct_Pt = validation_BRDF;
+
+  // Add the validation sphere to the validation scene
+  validation_scene.Add_Object(std::make_unique<Sphere>(validation_sphere));
+
+  // Storage for variables
+  double expected_answer = 0.0;
+  double actual_answer = 0.0;
+  unsigned maximum_number_of_bounces_validation = 100;
+  unsigned number_of_samples = 1;
+
+  // Create an output data file
+  std::ofstream validation_output_file;
+  validation_output_file.open("Output/Validation_Variable_Bounces");
+
+  // Output the headings for each column
+  validation_output_file.width(10);
+  validation_output_file << "No_Bounces";
+  validation_output_file.width(17);
+  validation_output_file << "Expected_Answer";
+  validation_output_file.width(15);
+  validation_output_file << "Actual_Answer" << std::endl;
+
+  // Output data for the validation case with a varying number of bounces
+  for (unsigned i = 0; i < maximum_number_of_bounces_validation; i++)
+  {
+    // Find the red component of the pixel colour multiple times and find the
+    // mean
+    actual_answer = 0.0;
+    for (unsigned j = 0; j < number_of_samples; j++)
+    {
+      actual_answer += validation_scene.Render_Image(i + 1, 1)(0, 0).x;
+    }
+    actual_answer /= number_of_samples;
+
+    // Calculate the expected value of the red component of the pixel colour via
+    // the power series
+    expected_answer = 0.0;
+    for (unsigned j = 0; j < i + 1; j++)
+    {
+      expected_answer += pow(pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x, j);
+    }
+    expected_answer *= validation_light_emitted(Vec3()).x;
+
+    // Output the number of bounces
+    validation_output_file.width(10);
+    validation_output_file << i;
+
+    // Output the expected answer
+    validation_output_file.width(17);
+    validation_output_file << expected_answer;
+
+    // Output the actual answer
+    validation_output_file.width(15);
+    validation_output_file << actual_answer << std::endl;
+  }
+
+  validation_output_file.close();
+}
+#else
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// End of Validation Case /////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Start of Driver Code //////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 Radiance red_BRDF(const Vec3 &position,
                   const Vec3 &incident_light_vector,
@@ -1109,78 +1237,6 @@ Radiance ceiling_light_emitted(const Vec3 &position)
 
 int main()
 {
-  // Create an observer for the validation case. This observer is positioned at
-  // the origin, faces towards positive x with upwards orientated with the
-  // z-axis. The horizontal field of view is 90 degrees, and the resolution of
-  // the image is 1x1.
-  Observer validation_observer(Vec3(0.0, 0.0, 0.0),
-                               Vec3(1.0, 0.0, 0.0),
-                               Vec3(0.0, 0.0, 1.0),
-                               pi,
-                               std::vector<unsigned>(2, 1.0));
-
-  SceneRender validation_scene(validation_observer);
-
-  // Create a single sphere for the validation case
-  Sphere validation_sphere(Vec3(0.0, 0.0, 0.0), 1.0);
-
-  // Set the light emitted by this validation sphere
-  validation_sphere.Light_Emitted_Fct_Pt = validation_light_emitted;
-
-  // Set the BRDF of the validation sphere to a Lambertian BRDF
-  validation_sphere.BRDF_Fct_Pt = validation_BRDF;
-
-  // Add the validation sphere to the validation scene
-  validation_scene.Add_Object(std::make_unique<Sphere>(validation_sphere));
-
-  // Find the analytical solution to the LTE for the validation case
-  double result = validation_light_emitted(Vec3()).x /
-                  (1.0 - pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x);
-
-  // Store variables used in working out the variance of the "empirical" method
-  double variance = 0.0;
-  unsigned number_of_variance_samples = 100;
-  unsigned max_camera_samples = 1000;
-
-  // Open a file to store results in
-  std::ofstream validation_results_file;
-  validation_results_file.open("Validation_results.dat");
-
-  // Output the name of each column at the top of the file
-  validation_results_file.width(20);
-  validation_results_file << "No. camera samples";
-  validation_results_file.width(20);
-  validation_results_file << "Variance" << std::endl;
-  validation_results_file << std::fixed;
-
-  // Loop over a range of number of camera samples
-  for (unsigned i = 1; i < (max_camera_samples / 10); i++)
-  {
-    // Reset the variance after each value of number of camera samples worked on
-    variance = 0.0;
-
-    // Find the variance over number_of_variance_samples number of samples
-    for (unsigned j = 0; j < number_of_variance_samples; j++)
-    {
-      // Inside of sum of variance formula
-      variance += pow(
-        validation_scene.Render_Image_Multithreaded_Russian(i)(0, 0).x - result,
-        2);
-    }
-    // Divide by number of samples to get the variance
-    variance /= number_of_variance_samples;
-
-    // Output the number of camera samples used and the respective variance in
-    // separate columns
-    validation_results_file.width(20);
-    validation_results_file << 10 * i;
-    validation_results_file.width(20);
-    validation_results_file.precision(16);
-    validation_results_file << variance << std::endl;
-  }
-
-  validation_results_file.close();
-
   std::vector<unsigned> resolution;
   resolution.push_back(128);
   resolution.push_back(108);
@@ -1221,5 +1277,7 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  // scene.Render_Image_Multithreaded_Russian(1).Save("Cornell_Box_3.png");
+  scene.Render_Image_Multithreaded_Russian(1).Save("Cornell_Box_3.png");
 }
+
+#endif

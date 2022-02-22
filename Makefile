@@ -1,5 +1,8 @@
-Project: Project.cc
+Project: Project.cc Ray.h Image.h Vec3.h stb_image_write.h
 	g++ -std=c++20 Project.cc -o Project -pthread
 
-TestProject: Project.cc
+TestProject: Project.cc Ray.h Image.h Vec3.h stb_image_write.h
 	g++ -std=c++20 Project.cc -DTEST -o TestProject -pthread
+
+ValidateProject: Project.cc Ray.h Image.h Vec3.h stb_image_write.h
+	g++ -std=c++20 Project.cc -DVALIDATE -o ValidateProject -pthread
