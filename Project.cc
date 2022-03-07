@@ -287,7 +287,7 @@ public:
     unit_sideways_direction =
       cross(unit_camera_direction, unit_upward_direction);
 
-    // The horizontal viewing angle
+    // The horizontal viewing angle(radians)
     horizontal_field_of_view_angle = horizontal_field_of_view_angle_;
 
     // The resolution of the camera
@@ -308,10 +308,12 @@ public:
     // the vector to the pixel specified from the centre of the "tennis racket"
     Vec3 direction_to_pixel =
       unit_camera_direction +
-      (2.0 * tan(horizontal_field_of_view_angle / 2.0) / resolution[0]) *
-        (x_pixel - (resolution[0] / 2.0 - 0.5)) * unit_sideways_direction +
-      (2.0 * tan(vertical_field_of_view_angle / 2.0) / resolution[1]) *
-        ((resolution[1] / 2.0 - 0.5) - y_pixel) * unit_upward_direction;
+      tan(horizontal_field_of_view_angle / 2.0) *
+        ((2.0 * double(x_pixel)) / (double(resolution[0]) - 1.0) - 1.0) *
+        unit_sideways_direction -
+      tan(vertical_field_of_view_angle / 2.0) *
+        ((2.0 * double(y_pixel)) / (double(resolution[1]) - 1.0) - 1.0) *
+        unit_upward_direction;
 
     // Normalise this direction vector
     direction_to_pixel.normalise();
@@ -1349,7 +1351,7 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  scene.Render_Image_Multithreaded_Russian(1).Save("Cornell_Box_3.png");
+  scene.Render_Image_Russian(1000).Save("Cornell_Box_3.png");
 }
 
 #endif
