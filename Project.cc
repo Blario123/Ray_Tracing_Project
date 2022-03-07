@@ -370,8 +370,17 @@ public:
   {
     // Only an observer is required in the construction of a scene
     observer_pt = std::make_unique<Observer>(observer_);
+
+    // Get a seed with a random value
+    std::random_device random_seed;
+
+    // Create a uniform distribution between -1 and 1
+    generator = std::default_random_engine(random_seed());
+    distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
   }
 
+  std::default_random_engine generator;
+  std::uniform_real_distribution<double> distribution;
 
   // Add objects to the scene via a unique pointer
   void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
@@ -390,13 +399,6 @@ public:
   // Random hemisphere vector generator
   Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
   {
-    // Get a seed with a random value
-    std::random_device random_seed;
-
-    // Create a uniform distribution between -1 and 1
-    std::default_random_engine generator(random_seed());
-    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
-
     // The random vector is instantiated first
     Vec3 random_vector;
 
@@ -423,7 +425,7 @@ public:
 
       // Check the random vector is inside the unit sphere but isn't the zero
       // vector
-      if (0 < modulus <= 1.0)
+      if (modulus <= 1.0 && modulus > 0.0)
       {
         // Normalise the random vector
         random_vector.normalise();
@@ -629,7 +631,7 @@ public:
     {
       // Add the radiance from all the objects the light ray hits as it bounces
       // a fixed amount of times
-      resulting_light += (2.0 * pi * brdf) * Light_Out_Russian(new_ray);
+      resulting_light += 2.0 * pi * brdf * Light_Out_Russian(new_ray);
     }
 
     return resulting_light;
@@ -1128,7 +1130,10 @@ int main()
   double expected_answer = 0.0;
   double actual_answer = 0.0;
   unsigned maximum_number_of_bounces_validation = 100;
-  unsigned number_of_samples = 1;
+  unsigned number_of_samples = 1000;
+  unsigned maximum_number_of_Monte_Carlo_samples = 10000;
+  double rr_variance = 0.0;
+
 
   // Create an output data file
   std::ofstream validation_output_file;
@@ -1143,21 +1148,25 @@ int main()
   validation_output_file << "Actual_Answer" << std::endl;
 
   // Output data for the validation case with a varying number of bounces
-  for (unsigned i = 0; i < maximum_number_of_bounces_validation; i++)
+  for (unsigned number_of_bounces = 0;
+       number_of_bounces < maximum_number_of_bounces_validation;
+       number_of_bounces++)
   {
-    // Find the red component of the pixel colour multiple times and find the
-    // mean
+    // Render the single pixel of the validation case multiple times, and find
+    // the mean value of the red component.
     actual_answer = 0.0;
     for (unsigned j = 0; j < number_of_samples; j++)
     {
-      actual_answer += validation_scene.Render_Image(i + 1, 1)(0, 0).x;
+      actual_answer +=
+        validation_scene.Render_Image(number_of_bounces + 1, 1)(0, 0).x;
     }
     actual_answer /= number_of_samples;
 
     // Calculate the expected value of the red component of the pixel colour via
-    // the power series
+    // the power series L = L_e * sigma(k = 0 to number_of_bounces) (pi *
+    // brdf)^k.
     expected_answer = 0.0;
-    for (unsigned j = 0; j < i + 1; j++)
+    for (unsigned j = 0; j < number_of_bounces + 1; j++)
     {
       expected_answer += pow(pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x, j);
     }
@@ -1165,7 +1174,7 @@ int main()
 
     // Output the number of bounces
     validation_output_file.width(10);
-    validation_output_file << i;
+    validation_output_file << number_of_bounces;
 
     // Output the expected answer
     validation_output_file.width(17);
@@ -1176,6 +1185,69 @@ int main()
     validation_output_file << actual_answer << std::endl;
   }
 
+  // Close the output file
+  validation_output_file.close();
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Validation case for Russian Roulette
+  //////////////////////////////////////////////////////////////////////////////
+
+
+  // Open a new output file
+  validation_output_file.open("Output/Validation_Russian");
+
+  // Output the headings of the output data file
+  validation_output_file.width(10);
+  validation_output_file << "No_Samples";
+  validation_output_file.width(20);
+  validation_output_file << "Expected_Answer";
+  validation_output_file.width(25);
+  validation_output_file << "Actual_Answer";
+  validation_output_file.width(25);
+  validation_output_file << "Variance" << std::endl;
+
+  // Storage for temporarily needed output
+  double current_answer = 0.0;
+
+  // Calculate the exact answer for the output case using the formula L =
+  // L_e/(1.0 - pi * brdf)
+  expected_answer = validation_light_emitted(Vec3()).x /
+                    (1.0 - pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x);
+
+  // Run the validation case with increasing number of Monte-Carlo samples,
+  // increasing in steps of 10
+  for (unsigned i = 1; i < maximum_number_of_Monte_Carlo_samples / 10; i++)
+  {
+    // Reset the mean and variance with each different sample size taken.
+    actual_answer = 0.0;
+    rr_variance = 0.0;
+
+    // Find the mean and the variance of the rendering algorithm with Russian
+    // Roulette implemented
+    for (unsigned j = 0; j < number_of_samples; j++)
+    {
+      current_answer = validation_scene.Render_Image_Russian(i * 10)(0, 0).x;
+
+      actual_answer += current_answer;
+
+      rr_variance += pow((current_answer - expected_answer), 2);
+    }
+    actual_answer /= number_of_samples;
+    rr_variance /= number_of_samples;
+
+    // Output the data for each value of the Monte-Carlo method sample size
+    validation_output_file.width(10);
+    validation_output_file << i * 10;
+    validation_output_file.width(20);
+    validation_output_file << expected_answer;
+    validation_output_file.width(25);
+    validation_output_file.precision(15);
+    validation_output_file << actual_answer;
+    validation_output_file.width(25);
+    validation_output_file << rr_variance << std::endl;
+  }
+
+  // Close the output file
   validation_output_file.close();
 }
 #else
