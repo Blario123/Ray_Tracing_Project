@@ -1192,6 +1192,60 @@ public:
     }
   }
 
+  // Advance a ray in the scene until it gets within a threshold distance of an
+  // object, at this point, an intersection is assumed to happen. If
+  // 'intersected' is true, an intersection has happened, otherwise, the light
+  // ray being advanced is assumed to not intersect with an object in the scene.
+  Vec3 First_Intersection_Point(
+    const Ray &light_ray,
+    const double &threshold_intersection_distance,
+    const double &threshold_no_intersection_distance,
+    bool &intersected)
+  {
+    // Storage for variables
+    Vec3 intersection_point(0.0, 0.0, 0.0);
+    double distance_travelled = 0.0;
+    double safe_travel_distance = SDF(light_ray.Get_Initial_Position());
+    double new_safe_travel_distance = SDF(light_ray.Get_Initial_Position());
+
+    // Advance a light ray while it hasn't intersected a surface and isn't too
+    // far away from any objects
+    while (safe_travel_distance >= threshold_intersection_distance &&
+           safe_travel_distance <= threshold_no_intersection_distance)
+    {
+      // The value of the SDF at any position is the distance that can be safely
+      // travelled from that position without passing through a surface. At each
+      // iteration, the light ray is advanced by that safe travel distance. The
+      // total distance travelled is tallied in distance_travelled.
+      new_safe_travel_distance =
+        SDF(light_ray.Get_Initial_Position() +
+            (distance_travelled + safe_travel_distance) *
+              light_ray.Get_Direction_Vector());
+
+      // Tally the distance travelled
+      distance_travelled += safe_travel_distance;
+
+      // Define the new safe distance to travel
+      safe_travel_distance = new_safe_travel_distance;
+    }
+
+    // If the light ray gets too far away from any object in the scene, it is
+    // assumed that there is no intersection so set 'intersected' to false and
+    // return from the function.
+    if (safe_travel_distance > threshold_no_intersection_distance)
+    {
+      intersected = false;
+      return intersection_point;
+    }
+
+    // If the light has intersected with an object, set 'intersected' to true
+    // and find the point of intersection then return this point.
+    intersected = true;
+    intersection_point = light_ray.Get_Initial_Position() +
+                         distance_travelled * light_ray.Get_Direction_Vector();
+
+    return intersection_point;
+  }
 
   // A function pointer to the light emitted
   Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
@@ -1448,6 +1502,10 @@ Radiance ceiling_light_emitted(const Vec3 &position)
   }
 }
 
+double unit_sphere_sdf(const Vec3 &position)
+{
+  return (position.norm() - 1.0);
+}
 
 int main()
 {
@@ -1461,6 +1519,7 @@ int main()
                     pi / 3.0,
                     resolution);
 
+  /*
   SceneRender scene(observer);
 
   double radius = 1000.0;
@@ -1492,6 +1551,35 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
   scene.Render_Image_Multithreaded_Russian(100).Save("Cornell_Box_3.png");
+  */
+
+  std::vector<unsigned> test_resolution{1, 1};
+
+  Observer test_observer(Vec3(1.0, 0.0, 0.0),
+                         Vec3(1.0, 0.0, 0.0),
+                         Vec3(0.0, 0.0, 1.0),
+                         pi / 3.0,
+                         test_resolution);
+
+  SceneRenderSDF test_scene(observer);
+
+  test_scene.SDF_Fct_Pt = unit_sphere_sdf;
+
+  Vec3 ray_start(-5.0, 0.0, 1.0000001);
+  Vec3 ray_direction(1.0, 0.0, 0.0);
+  Ray test_ray(ray_start, ray_direction);
+
+  bool intersection = false;
+  double intersection_threshold = 1e-8;
+  double no_intersection_threshold = 100.0;
+
+  Vec3 intersection_point(0.0, 0.0, 0.0);
+
+  intersection_point = test_scene.First_Intersection_Point(
+    test_ray, intersection_threshold, no_intersection_threshold, intersection);
+
+  std::cout << intersection << std::endl;
+  std::cout << intersection_point << std::endl;
 }
 
 #endif
