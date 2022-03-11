@@ -381,9 +381,6 @@ public:
     distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
   }
 
-  std::default_random_engine generator;
-  std::uniform_real_distribution<double> distribution;
-
   // Add objects to the scene via a unique pointer
   void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
   {
@@ -1070,11 +1067,57 @@ private:
 
   // A pointer to the Observer of the scene
   std::unique_ptr<Observer> observer_pt;
+
+  // Random engine and distribution for use in generating random vectors
+  std::default_random_engine generator;
+  std::uniform_real_distribution<double> distribution;
 };
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// End of SceneRender ////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////// Start of SceneRenderSDF /////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+class SceneRenderSDF
+{
+public:
+  SceneRenderSDF(Observer &observer_)
+  {
+    // Only an observer is required in the construction of a scene
+    observer_pt = std::make_unique<Observer>(observer_);
+
+    // Get a seed with a random value
+    std::random_device random_seed;
+
+    // Create a uniform distribution between -1 and 1
+    generator = std::default_random_engine(random_seed());
+    distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
+  }
+
+  // A function pointer to the light emitted
+  Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
+
+  // A function pointer to the BRDF
+  Radiance (*BRDF_Fct_Pt)(const Vec3 &position,
+                          const Vec3 &incident_light_vector,
+                          const Vec3 &outgoing_light_vector) = 0;
+
+  // A function pointer to the SDF
+  double (*SDF_Fct_Pt)(const Vec3 &position) = 0;
+
+private:
+  // A pointer to the Observer of the scene
+  std::unique_ptr<Observer> observer_pt;
+
+  // Random engine and distribution for use in generating random vectors
+  std::default_random_engine generator;
+  std::uniform_real_distribution<double> distribution;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// End of SceneRenderSDF //////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Start of Validation Case ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1351,7 +1394,7 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  scene.Render_Image_Russian(1000).Save("Cornell_Box_3.png");
+  scene.Render_Image_Multithreaded_Russian(100).Save("Cornell_Box_3.png");
 }
 
 #endif
