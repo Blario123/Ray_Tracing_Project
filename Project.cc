@@ -1192,6 +1192,54 @@ public:
     }
   }
 
+  // Random hemisphere vector generator
+  Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
+  {
+    // The random vector is instantiated first
+    Vec3 random_vector;
+
+    // Keep looping over this algorithm until a suitable vector is found
+    while (true)
+    {
+      // The purpose of this algorithm is to generate a normal distribution of
+      // points on a unit hemisphere. The hemisphere we have is such that a
+      // vector from the centre to a point on the hemisphere has a positive dot
+      // product with the argument "normal".
+      // The idea of this algorithm is to generate a point from a uniform
+      // distribution inside a 2x2x2 cube, if it is outside the unit sphere
+      // (diameter 2), discard the point, otherwise map it to the hemisphere by
+      // multiplying the position vector of the point with the appropriate
+      // value.
+
+      // Set the components of random_vector to random values inside (-1,1)
+      random_vector.x = distribution(generator);
+      random_vector.y = distribution(generator);
+      random_vector.z = distribution(generator);
+
+      // Find the squared norm
+      double modulus = random_vector.norm2();
+
+      // Check the random vector is inside the unit sphere but isn't the zero
+      // vector
+      if (modulus <= 1.0 && modulus > 0.0)
+      {
+        // Normalise the random vector
+        random_vector.normalise();
+
+        // Make sure that the random vector is in the hemisphere defined by the
+        // direction of the normal
+        if (dot(random_vector, normal) < 0.0)
+        {
+          random_vector = -random_vector;
+        }
+        break;
+      }
+    }
+
+    // Return the random vector
+    return random_vector;
+  } // End of Hemisphere_Vector_Generator
+
   // Advance a ray in the scene until it gets within a threshold distance of an
   // object, at this point, an intersection is assumed to happen. If
   // 'intersected' is true, an intersection has happened, otherwise, the light
@@ -1205,8 +1253,10 @@ public:
     // Storage for variables
     Vec3 intersection_point(0.0, 0.0, 0.0);
     double distance_travelled = 0.0;
-    double safe_travel_distance = SDF(light_ray.Get_Initial_Position());
-    double new_safe_travel_distance = SDF(light_ray.Get_Initial_Position());
+    double safe_travel_distance =
+      std::abs(SDF(light_ray.Get_Initial_Position()));
+    double new_safe_travel_distance =
+      std::abs(SDF(light_ray.Get_Initial_Position()));
 
     // Advance a light ray while it hasn't intersected a surface and isn't too
     // far away from any objects
@@ -1218,9 +1268,9 @@ public:
       // iteration, the light ray is advanced by that safe travel distance. The
       // total distance travelled is tallied in distance_travelled.
       new_safe_travel_distance =
-        SDF(light_ray.Get_Initial_Position() +
-            (distance_travelled + safe_travel_distance) *
-              light_ray.Get_Direction_Vector());
+        std::abs(SDF(light_ray.Get_Initial_Position() +
+                     (distance_travelled + safe_travel_distance) *
+                       light_ray.Get_Direction_Vector()));
 
       // Tally the distance travelled
       distance_travelled += safe_travel_distance;
@@ -1246,6 +1296,71 @@ public:
 
     return intersection_point;
   }
+
+  // Calculate the radiance coming from the direction of light_ray using the
+  // Light Transport Equation considering the light rays take bounces_remaining
+  // number of bounces.
+  Radiance Light_Out(const Ray &light_ray,
+                     unsigned bounces_remaining,
+                     const double &intersection_threshold,
+                     const double &no_intersection_threshold,
+                     const double &difference_size)
+  {
+    // If the light ray can't bounce off a single object, no light will reach
+    // the "observer".
+    if (bounces_remaining == 0)
+    {
+      return Radiance(0.0, 0.0, 0.0);
+    }
+
+    // Initialise a boolean that will contain the result of whether an object
+    // has been hit or not.
+    bool object_hit = false;
+
+    // Find the closest intersection of light_ray with an object along with the
+    // index of the object hit in object_pt_vector
+    Vec3 intersection_point = First_Intersection_Point(
+      light_ray, intersection_threshold, no_intersection_threshold, object_hit);
+
+    // If no object was hit according to First_Intersection_Point,
+    // index_of_object_hit will be -1 and therefore no light will be seen
+    if (!object_hit)
+    {
+      return Radiance(0.0, 0.0, 0.0);
+    }
+
+    // First, find the light emitted by the object in the direction of light_ray
+    Radiance resulting_light = Light_Emitted(intersection_point);
+
+    // Find the normal to the surface hit by light_ray at the point of
+    // intersection
+    Vec3 normal = Orientated_Normal(
+      intersection_point, -light_ray.Get_Direction_Vector(), difference_size);
+
+    // Find the direction of a random incident ray onto an object, along with
+    // its point of origin
+    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
+    Vec3 new_position = intersection_point + 1.0e-8 * normal;
+    Ray new_ray(new_position, new_direction);
+
+    // Find the BRDF of the first object hit by light_ray
+    Vec3 brdf = BRDF(intersection_point,
+                     light_ray.Get_Direction_Vector(),
+                     new_ray.Get_Direction_Vector());
+
+    // Add the radiance from all the objects the light ray hits as it bounces a
+    // fixed amount of times
+    resulting_light += 2.0 * pi * brdf * dot(new_direction, normal) *
+                       Light_Out(new_ray,
+                                 bounces_remaining - 1,
+                                 intersection_threshold,
+                                 no_intersection_threshold,
+                                 difference_size);
+
+
+    return resulting_light;
+  } // End of Light_Out
+
 
   // A function pointer to the light emitted
   Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
@@ -1507,6 +1622,26 @@ double unit_sphere_sdf(const Vec3 &position)
   return (position.norm() - 1.0);
 }
 
+// Validation case
+// Create a light emitted function for the validation case (Only the x_value
+// shall be non-zero for convenience)
+Radiance validation_light_emitted(const Vec3 &position)
+{
+  // Return this arbitrarily chosen RGB radiance value
+  return Radiance(0.125, 0.0, 0.0);
+}
+
+// Create a BRDF for the validation case (Only the x_value shall be non-zero for
+// convenience)
+Radiance validation_BRDF(const Vec3 &position,
+                         const Vec3 &incident_light_vector,
+                         const Vec3 &outgoing_light_vector)
+{
+  // Implement the Lambertian BRDF with a reflectivity of (0.25, 0.5, 0.75) in
+  // the RGB components
+  return Vec3(0.5 * pi_reciprocal, 0.0, 0.0);
+}
+
 int main()
 {
   std::vector<unsigned> resolution;
@@ -1555,7 +1690,7 @@ int main()
 
   std::vector<unsigned> test_resolution{1, 1};
 
-  Observer test_observer(Vec3(1.0, 0.0, 0.0),
+  Observer test_observer(Vec3(0.0, 0.0, 0.0),
                          Vec3(1.0, 0.0, 0.0),
                          Vec3(0.0, 0.0, 1.0),
                          pi / 3.0,
@@ -1565,21 +1700,27 @@ int main()
 
   test_scene.SDF_Fct_Pt = unit_sphere_sdf;
 
-  Vec3 ray_start(-5.0, 0.0, 1.0000001);
-  Vec3 ray_direction(1.0, 0.0, 0.0);
-  Ray test_ray(ray_start, ray_direction);
+  test_scene.Light_Emitted_Fct_Pt = validation_light_emitted;
 
-  bool intersection = false;
+  test_scene.BRDF_Fct_Pt = validation_BRDF;
+
+  Vec3 ray_position(0.0, 0.0, 0.0);
+  Vec3 ray_direction(1.0, 0.0, 0.0);
+
+  Ray light_ray(ray_position, ray_direction);
+
+  unsigned nbounces = 1;
   double intersection_threshold = 1e-8;
   double no_intersection_threshold = 100.0;
+  double difference_size = 1e-8;
 
-  Vec3 intersection_point(0.0, 0.0, 0.0);
+  Radiance output = test_scene.Light_Out(light_ray,
+                                         nbounces,
+                                         intersection_threshold,
+                                         no_intersection_threshold,
+                                         difference_size);
 
-  intersection_point = test_scene.First_Intersection_Point(
-    test_ray, intersection_threshold, no_intersection_threshold, intersection);
-
-  std::cout << intersection << std::endl;
-  std::cout << intersection_point << std::endl;
+  std::cout << output << std::endl;
 }
 
 #endif
