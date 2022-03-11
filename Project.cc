@@ -1096,6 +1096,103 @@ public:
     distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
   }
 
+  // Obtain the normal to the isosurface which the point 'position' rests on,
+  // given the SDF, the normal chosen out of the choice of the two which are
+  // negatives of each other is the one which is closer to 'direction'. That is,
+  // their dot product is positive. The normal is obtained numerically via the
+  // central finite difference method which takes a step size of
+  // 'difference_size'.
+  Vec3 Orientated_Normal(const Vec3 &position,
+                         const Vec3 &direction,
+                         const double &difference_size)
+  {
+    // The central finite difference of the SDF is taken in all three coordinate
+    // directions in order to get the gradient of the SDF. This gradient is a
+    // normal to any isosurface at 'position'. This gradient is then normalised
+    // to get the unit normal, then the dot product is taken with 'direction'.
+    // If the dot product is negative, we flip the signs of the normal and take
+    // that as the normal.
+
+    // Initialise storage
+    Vec3 normal(0.0, 0.0, 0.0);
+
+    // Find the non-unit normal, division by step size is unnecessary since the
+    // normal will be normalised
+    normal.x = SDF(Vec3(position.x + difference_size, position.y, position.z)) -
+               SDF(Vec3(position.x - difference_size, position.y, position.z));
+    normal.y = SDF(Vec3(position.x, position.y + difference_size, position.z)) -
+               SDF(Vec3(position.x, position.y - difference_size, position.z));
+    normal.z = SDF(Vec3(position.x, position.y, position.z + difference_size)) -
+               SDF(Vec3(position.x, position.y, position.z - difference_size));
+
+    // Find the unit normal
+    normal.normalise();
+
+    // Find the normal that is closest in direction to 'direction'
+    if (dot(normal, direction) < 0.0)
+    {
+      normal = -normal;
+    }
+
+    return normal;
+  }
+
+  // This function returns the components of the light emitted from this
+  // object's surface given a position on the surface and the direction of the
+  // light.
+  Radiance Light_Emitted(const Vec3 &position)
+  {
+    if (Light_Emitted_Fct_Pt == 0)
+    {
+      // If the pointer to the light emitted is a null pointer, return the zero
+      // vector
+      Radiance zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If Light_Emitted_Fct_Pt points to a function, evaluate this function
+      return (*Light_Emitted_Fct_Pt)(position);
+    }
+  } // End of Light_Emitted
+
+  // This function returns the Bidirection Reflectance Distribution Function
+  // given a position, incident light vector and outgoing light vector.
+  Radiance BRDF(const Vec3 &position,
+                const Vec3 &incident_light_vector,
+                const Vec3 &outgoing_light_vector)
+  {
+    if (BRDF_Fct_Pt == 0)
+    {
+      // If the pointer to the BRDF is a null pointer, return the zero vector
+      Radiance zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If BRDF_Fct_Pt points to a function, evaluate this function
+      return (*BRDF_Fct_Pt)(
+        position, incident_light_vector, outgoing_light_vector);
+    }
+  } // End of BRDF
+
+  // SDF returns the value of the SDF at the current position.
+  double SDF(const Vec3 &position)
+  {
+    if (SDF_Fct_Pt == 0)
+    {
+      // If the pointer to the SDF is null, return a zero value
+      return 0.0;
+    }
+    else
+    {
+      // Return the value of the SDF as given by the function pointed to by
+      // SDF_Fct_Pt at 'position'
+      return (*SDF_Fct_Pt)(position);
+    }
+  }
+
+
   // A function pointer to the light emitted
   Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
 
