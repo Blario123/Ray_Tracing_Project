@@ -4,6 +4,7 @@
 #include <random> // Allow usage of random number generation
 #include <chrono> // Allow usage of timing
 #include <fstream> // Allow output to file
+#include <algorithm> // Allow usage of max
 
 #include "Image.h" // Include image write implementation
 #include "Vec3.h" // Include 3D vectors (Already included in Image.h but kept
@@ -1361,6 +1362,92 @@ public:
     return resulting_light;
   } // End of Light_Out
 
+  // Render the image and export it to filename.
+  Image Render_Image(const unsigned &number_of_bounces,
+                     const unsigned &number_of_random_samples,
+                     const double &intersection_threshold,
+                     const double &no_intersection_threshold,
+                     const double &difference_size)
+  {
+#ifdef TEST
+    // If no random samples are taken, no image will be produced and a division
+    // by zero may occur so we throw an error
+    if (number_of_random_samples == 0)
+    {
+      throw std::invalid_argument(
+        "The number of random samples may not be chosen as zero");
+    }
+#endif
+    // Find the resolution of the observer
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct resolution
+    Image image(resolution[0], resolution[1]);
+
+    // Create storage for the radiance at each pixel
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+
+    // Initialise variables used for outputting the current progress to the
+    // terminal
+    unsigned tenth_percentiles = 0;
+    double proportion_done = 0.0;
+
+    // Calculate the radiance of each pixel of the image
+    for (unsigned i = 0; i < resolution[0]; i++)
+    {
+      // This section of code is for outputting the progress to the terminal
+
+      // Find the proportion of pixels calculated
+      proportion_done = double(i + 1) / double(resolution[0]);
+
+      // Every time 10% or more of the pixels have been rendered, print to the
+      // terminal
+      if (unsigned(10.0 * proportion_done) > tenth_percentiles)
+      {
+        // tenth_percentiles is used to keep track of the last 10th percent
+        // printed
+        tenth_percentiles = unsigned(10.0 * proportion_done);
+
+        // The tenth tenth_percentile is 100% so the image will have been
+        // rendered
+        if (tenth_percentiles == 10)
+        {
+          std::cout << "The image has been rendered." << std::endl;
+        }
+        else
+        {
+          // Update the terminal on the latest 10% done
+          std::cout << "Roughly " << 10 * tenth_percentiles
+                    << "\% of the pixels have been rendered." << std::endl;
+        }
+      }
+
+      // Find the radiance at each pixel and set each pixel to this RGB value
+      for (unsigned j = 0; j < resolution[1]; j++)
+      {
+        // Set the radiance at each pixel to zero before calculating the
+        // radiance
+        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+        // Sum up the radiance of multiple light rays "shot out" from the camera
+        // in the direction of this pixel
+        for (unsigned k = 0; k < number_of_random_samples; k++)
+        {
+          pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
+                                      number_of_bounces,
+                                      intersection_threshold,
+                                      no_intersection_threshold,
+                                      difference_size);
+        }
+
+        // Set the RGB value of this pixel to the average radiance over the
+        // number of light rays shot out
+        image(i, j) = pixel_radiance / number_of_random_samples;
+      }
+    }
+
+    return image;
+  }
 
   // A function pointer to the light emitted
   Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
@@ -1384,6 +1471,110 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// End of SceneRenderSDF //////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////// Start of SDF Operations /////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// Simplifies code by providing a 'wrapper' around a simple function, subtracts
+// 'displacement' from 'position', therefore supplying 'displaced_position' into
+// an SDF is the same as displacing the SDF by the Vec3 'displacement'.
+Vec3 displaced_position(const Vec3 &position, const Vec3 &displacement)
+{
+  return position - displacement;
+}
+
+// A 'wrapper' around the minimum function, takes the minimum of two SDFs to
+// return an SDF describing a surface that is the union of the surfaces
+// described by the two constituent SDFs.
+double union_sdf(const double &sdf_1, const double &sdf_2)
+{
+  return std::min(sdf_1, sdf_2);
+}
+
+// A 'wrapper' around the maximum function, takes the maximum of two SDFs to
+// return an SDF describing a surface that is the intersection of the surfaces
+// described by the two constituent SDFs.
+double intersection_sdf(const double &sdf_1, const double &sdf_2)
+{
+  return std::max(sdf_1, sdf_2);
+}
+
+// Takes the maximum of the first sdf and the negative of the second SDF to
+// return an SDF describing a surface that is the surface of the first SDF minus
+// the volume of the second SDF.
+double subtraction_sdf(const double &sdf_1, const double &sdf_2)
+{
+  return std::max(sdf_1, -sdf_2);
+}
+
+// Rotates the vector 'position' anti-clockwise by 'angle' radians, this has the
+// effect of rotating an SDF clockwise when 'rotate_z_axis_position' is plugged
+// in as the position vector.
+Vec3 rotate_z_axis_position(const Vec3 &position, const double &angle)
+{
+  return Vec3(cos(angle) * position.x - sin(angle) * position.y,
+              sin(angle) * position.x + cos(angle) * position.y,
+              position.z);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// End of SDF Operations //////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// Start of SDF Functions /////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+// Returns the SDF of a sphere centred at the origin with a radius 'radius',
+// this is simply the distance from 'position' to the origin minus the radius
+double sphere_sdf(const Vec3 &position, const double &radius)
+{
+  return (position.norm() - radius);
+}
+
+// Returns the SDF of a cube centred at the origin with the position of the
+// vertex in the positive quadrant given by 'cube_vertex_in_positive_quadrant'
+double cube_sdf(const Vec3 &position,
+                const Vec3 &cube_vertex_in_positive_quadrant)
+{
+  Vec3 absolute_position(abs(position.x), abs(position.y), abs(position.z));
+
+  Vec3 position_to_vertex =
+    absolute_position - cube_vertex_in_positive_quadrant;
+
+  return Vec3(std::max(position_to_vertex.x, 0.0),
+              std::max(position_to_vertex.y, 0.0),
+              std::max(position_to_vertex.z, 0.0))
+           .norm() +
+         std::min(
+           std::max(position_to_vertex.x,
+                    std::max(position_to_vertex.y, position_to_vertex.z)),
+           0.0);
+}
+
+// Returns the SDF of a torus centred at the origin with the z-axis passing
+// through the centre hole. This SDF is derived by taking the distance from
+// 'position' to the closest point on the circle centred at the origin lying in
+// the xy plane with radius 'circle_radius', then subtracting the radius of the
+// tube.
+double torus_sdf(const Vec3 &position,
+                 const double &circle_radius,
+                 const double &tube_radius)
+{
+  // The x component is the distance from 'position' to the closest point on an
+  // infinite cylinder centred at the origin of the xy plane with radius
+  // 'circle_radius'.
+  Vec3 intermediate_calculation = Vec3(
+    Vec3(position.x, position.y, 0.0).norm() - circle_radius, position.z, 0.0);
+
+  // Taking the norm of this vector returns the distance from 'position' to the
+  // closest point of the 2D circle lying at the origin of the xy plane with
+  // radius 'circle_radius'. Subtracting 'tube_radius' then returns the SDF of a
+  // torus.
+  return intermediate_calculation.norm() - tube_radius;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// End of SDF Functions //////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Start of Validation Case ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1617,9 +1808,49 @@ Radiance ceiling_light_emitted(const Vec3 &position)
   }
 }
 
-double unit_sphere_sdf(const Vec3 &position)
+Radiance test_BRDF(const Vec3 &position,
+                   const Vec3 &incident_light_vector,
+                   const Vec3 &outgoing_light_vector)
 {
-  return (position.norm() - 1.0);
+  if (position.z > 1.0)
+  {
+    return Radiance(1.0, 0.0, 0.0);
+  }
+  else if (position.z > -1.0)
+  {
+    return Radiance(0.0, 1.0, 0.0);
+  }
+
+  return Radiance(0.0, 0.0, 1.0);
+}
+
+double sdf(const Vec3 &position)
+{
+  double sdf_1 =
+    cube_sdf(rotate_z_axis_position(
+               displaced_position(position, Vec3(5.0, 0.0, 0.0)), pi / 4.0),
+             Vec3(1.0, 1.0, 1.0));
+
+  double sdf_2 =
+    sphere_sdf(displaced_position(position, Vec3(5.0, 0.0, 2.0)), 1.0);
+
+  double sdf_3 = position.x + 1.0;
+
+  double sdf_4 =
+    torus_sdf(displaced_position(position, Vec3(5.0, 0.0, -2.0)), 1.0, 0.5);
+
+  return union_sdf(union_sdf(sdf_1, sdf_2), union_sdf(sdf_3, sdf_4));
+}
+
+
+Radiance white_light_emitted(const Vec3 &position)
+{
+  if (position.x < -0.9)
+  {
+    return Radiance(1.0, 1.0, 1.0);
+  }
+
+  return Radiance(0.0, 0.0, 0.0);
 }
 
 // Validation case
@@ -1688,7 +1919,7 @@ int main()
   scene.Render_Image_Multithreaded_Russian(100).Save("Cornell_Box_3.png");
   */
 
-  std::vector<unsigned> test_resolution{1, 1};
+  std::vector<unsigned> test_resolution{1000, 1000};
 
   Observer test_observer(Vec3(0.0, 0.0, 0.0),
                          Vec3(1.0, 0.0, 0.0),
@@ -1696,31 +1927,31 @@ int main()
                          pi / 3.0,
                          test_resolution);
 
-  SceneRenderSDF test_scene(observer);
+  SceneRenderSDF test_scene(test_observer);
 
-  test_scene.SDF_Fct_Pt = unit_sphere_sdf;
+  test_scene.SDF_Fct_Pt = sdf;
 
-  test_scene.Light_Emitted_Fct_Pt = validation_light_emitted;
+  test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
 
-  test_scene.BRDF_Fct_Pt = validation_BRDF;
+  test_scene.BRDF_Fct_Pt = test_BRDF;
 
   Vec3 ray_position(0.0, 0.0, 0.0);
   Vec3 ray_direction(1.0, 0.0, 0.0);
 
   Ray light_ray(ray_position, ray_direction);
 
-  unsigned nbounces = 1;
+  unsigned nbounces = 2;
   double intersection_threshold = 1e-8;
   double no_intersection_threshold = 100.0;
   double difference_size = 1e-8;
 
-  Radiance output = test_scene.Light_Out(light_ray,
-                                         nbounces,
-                                         intersection_threshold,
-                                         no_intersection_threshold,
-                                         difference_size);
-
-  std::cout << output << std::endl;
+  test_scene
+    .Render_Image(nbounces,
+                  10,
+                  intersection_threshold,
+                  no_intersection_threshold,
+                  difference_size)
+    .Save("someimage.png");
 }
 
 #endif
