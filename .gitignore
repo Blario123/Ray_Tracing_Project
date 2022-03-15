@@ -9,6 +9,8 @@ LaTeX_Report_Files/*.pdf
 !Materials/
 !literature/
 !cgi_instructions.pdf
+!Output/
+!Headers/
 *.png
 test.cc
 .vscode/*

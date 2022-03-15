@@ -6,10 +6,10 @@
 #include <fstream> // Allow output to file
 #include <algorithm> // Allow usage of max
 
-#include "Image.h" // Include image write implementation
-#include "Vec3.h" // Include 3D vectors (Already included in Image.h but kept
+#include "Headers/Image.h" // Include image write implementation
+#include "Headers/Vec3.h" // Include 3D vectors (Already included in Image.h but kept
 // here for readability)
-#include "Ray.h" // Includes the Ray class
+#include "Headers/Ray.h" // Includes the Ray class
 
 // Create a type "Radiance" to be a Vec3 containing RGB components
 typedef Vec3 Radiance;
@@ -1449,6 +1449,170 @@ public:
     return image;
   }
 
+  // This function should be used purely in Render_Image_Multithreaded, when a
+  // thread is created to do this job, it will find the Radiance of pixels in
+  // such a way that it will work in parallel with other threads. The pixel
+  // data calculated by all the threads are used in Render_Image_Multithreaded
+  // to create the whole picture.
+  void Render_Image_Per_Thread(std::vector<Radiance> &partition,
+                               const unsigned number_of_bounces,
+                               const unsigned number_of_random_samples,
+                               const double &intersection_threshold,
+                               const double &no_intersection_threshold,
+                               const double &difference_size,
+                               const unsigned thread_index,
+                               const unsigned number_of_threads)
+  {
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Find the number of pixels there are
+    unsigned number_of_pixels = resolution[0] * resolution[1];
+
+    // Make sure that the vector of Radiance is empty
+    partition.resize(0);
+
+    // Reserve the minimum amount of memory that each vector will need to
+    // reduce the cost of push_back
+    partition.reserve(number_of_pixels / number_of_threads);
+
+    // If the rows of pixels from top to bottom in an image were laid end to
+    // end, pixel_index is the index of a pixel in this "vector" of pixels.
+    unsigned pixel_index = thread_index;
+
+    // Initialise variables
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    while (pixel_index < number_of_pixels)
+    {
+      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
+      // image, this is calculated from pixel_index and the resolution
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the radiance to zero for each pixel before calculating the radiance
+      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+      // Take the total radiance for a pixel over number_of_random_samples
+      // light rays
+      for (unsigned i = 0; i < number_of_random_samples; i++)
+      {
+        pixel_radiance +=
+          Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+                    number_of_bounces,
+                    intersection_threshold,
+                    no_intersection_threshold,
+                    difference_size);
+      }
+
+      // Set the RGB value of this pixel to the average radiance over all the
+      // rays traced
+      partition.push_back(pixel_radiance / number_of_random_samples);
+
+      // Move on to the pixel that is number_of_threads further so that each
+      // thread works on a different pixel
+      pixel_index += number_of_threads;
+    }
+  }
+
+  // This function can take in the number of threads to be utilised while
+  // rendering the image. This relies on the function of
+  // Render_Image_Per_Thread.
+  Image Render_Image_Multithreaded(
+    const unsigned &number_of_bounces,
+    const unsigned &number_of_random_samples,
+    const double &intersection_threshold,
+    const double &no_intersection_threshold,
+    const double &difference_size,
+    const unsigned &number_of_threads = std::thread::hardware_concurrency())
+  {
+#ifdef TEST
+    // If no random samples are taken, no image will be produced and a division
+    // by zero may occur so we throw an error
+    if (number_of_random_samples == 0)
+    {
+      throw std::invalid_argument(
+        "The number of random samples may not be chosen as zero");
+    }
+
+    // Check if the number of threads given as an argument is less than or
+    // equal to the number of threads available. If not, reduce
+    // number_of_threads to the maximum possible value.
+    if (number_of_threads > std::thread::hardware_concurrency())
+    {
+      throw std::invalid_argument(
+        "You don't have the number of threads specified in "
+        "Render_Image_Multithreaded available.");
+    }
+#endif
+
+    // Create a vector of threads
+    std::vector<std::thread> threads;
+
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct size
+    Image image(resolution[0], resolution[1]);
+
+    // Create the vectors of Radiance that each thread will work on
+    std::vector<std::vector<Radiance>> partitions(number_of_threads);
+
+    for (unsigned thread_index = 0; thread_index < number_of_threads;
+         thread_index++)
+    {
+      // Create number_of_threads threads to render the pixels of the image
+      threads.push_back(std::thread(&SceneRenderSDF::Render_Image_Per_Thread,
+                                    this,
+                                    std::ref(partitions[thread_index]),
+                                    number_of_bounces,
+                                    number_of_random_samples,
+                                    intersection_threshold,
+                                    no_intersection_threshold,
+                                    difference_size,
+                                    thread_index,
+                                    number_of_threads));
+    }
+
+    // If a thread is joinable, join it
+    for (std::thread &t : threads)
+    {
+      if (t.joinable())
+      {
+        t.join();
+      }
+    }
+
+    // Initialise variables
+    unsigned pixel_index = 0;
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    // Loop over every pixel in image and find the correct value of Radiance
+    // in partitions to assign to this pixel.
+    while (pixel_index < resolution[0] * resolution[1])
+    {
+      // If the rows of pixels from top to bottom of an image were laid end
+      // to end, and the index of a pixel in this "vector" of pixels were given
+      // as pixel_index, find the (i, j)-th index of this pixel in the image.
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
+      // the correct Radiance value
+      image(pixel_index_i, pixel_index_j) =
+        partitions[pixel_index % number_of_threads]
+                  [pixel_index / number_of_threads];
+
+      // Move on to the next pixel
+      pixel_index += 1;
+    }
+
+    return image;
+  }
+
   // A function pointer to the light emitted
   Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
 
@@ -1919,7 +2083,7 @@ int main()
   scene.Render_Image_Multithreaded_Russian(100).Save("Cornell_Box_3.png");
   */
 
-  std::vector<unsigned> test_resolution{1000, 1000};
+  std::vector<unsigned> test_resolution{100, 100};
 
   Observer test_observer(Vec3(0.0, 0.0, 0.0),
                          Vec3(1.0, 0.0, 0.0),
@@ -1940,18 +2104,18 @@ int main()
 
   Ray light_ray(ray_position, ray_direction);
 
-  unsigned nbounces = 2;
+  unsigned nbounces = 5;
   double intersection_threshold = 1e-8;
   double no_intersection_threshold = 100.0;
   double difference_size = 1e-8;
 
   test_scene
     .Render_Image(nbounces,
-                  10,
+                  100,
                   intersection_threshold,
                   no_intersection_threshold,
                   difference_size)
-    .Save("someimage.png");
+    .Save("Images/test.png");
 }
 
 #endif
