@@ -16,7 +16,7 @@ hold(axes1,'on');
 
 % Create loglog
 loglog(X1,Y1,'SeriesIndex',1,...
-    'DisplayName','Variance of the estimator with Russian Roulette',...
+    'DisplayName','Variance of the estimator',...
     'MarkerSize',8,...
     'LineWidth',1,...
     'Color',[0 0 0]);
@@ -29,10 +29,10 @@ loglog(X2,Y2,'DisplayName','Line with gradient of -1','LineWidth',1,...
 ylabel('Variance','Interpreter','latex');
 
 % Create xlabel
-xlabel('N');
+xlabel('N','Interpreter','latex');
 
 % Create title
-title('Variance vs N');
+title('Variance vs N','Interpreter','latex');
 
 % Uncomment the following line to preserve the X-limits of the axes
 % xlim(axes1,[10 1000]);

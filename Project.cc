@@ -23,6 +23,9 @@ const double pi_reciprocal = M_1_PI;
 class PhysicalObject
 {
 public:
+  // Virtual destructor
+  virtual ~PhysicalObject() {}
+
   // This function returns the components of the light emitted from this
   // object's surface given a position on the surface and the direction of the
   // light.
@@ -307,14 +310,27 @@ public:
   {
     // Add the vector from the camera to the centre of the "tennis racket" with
     // the vector to the pixel specified from the centre of the "tennis racket"
-    Vec3 direction_to_pixel =
-      unit_camera_direction +
-      tan(horizontal_field_of_view_angle / 2.0) *
+
+    Vec3 direction_to_pixel = unit_camera_direction;
+
+    // If one of the dimensions of the resolution is 1, the calculation of
+    // 'direction_to_pixel' returns nan when we want 0. So we check the
+    // dimensions of the resolution in turn.
+    if (resolution[0] != 1)
+    {
+      direction_to_pixel +=
+        tan(horizontal_field_of_view_angle / 2.0) *
         ((2.0 * double(x_pixel)) / (double(resolution[0]) - 1.0) - 1.0) *
-        unit_sideways_direction -
-      tan(vertical_field_of_view_angle / 2.0) *
+        unit_sideways_direction;
+    }
+
+    if (resolution[1] != 1)
+    {
+      direction_to_pixel -=
+        tan(vertical_field_of_view_angle / 2.0) *
         ((2.0 * double(y_pixel)) / (double(resolution[1]) - 1.0) - 1.0) *
         unit_upward_direction;
+    }
 
     // Normalise this direction vector
     direction_to_pixel.normalise();
@@ -945,7 +961,8 @@ public:
 
   // Render the image and export it to filename.
   Image Render_Image(const unsigned &number_of_bounces,
-                     const unsigned &number_of_random_samples)
+                     const unsigned &number_of_random_samples,
+                     const bool &silent = false)
   {
 #ifdef TEST
     // If no random samples are taken, no image will be produced and a division
@@ -975,28 +992,32 @@ public:
     {
       // This section of code is for outputting the progress to the terminal
 
-      // Find the proportion of pixels calculated
-      proportion_done = double(i + 1) / double(resolution[0]);
-
-      // Every time 10% or more of the pixels have been rendered, print to the
-      // terminal
-      if (unsigned(10.0 * proportion_done) > tenth_percentiles)
+      // Don't output progress if 'silent' is true
+      if (!silent)
       {
-        // tenth_percentiles is used to keep track of the last 10th percent
-        // printed
-        tenth_percentiles = unsigned(10.0 * proportion_done);
+        // Find the proportion of pixels calculated
+        proportion_done = double(i + 1) / double(resolution[0]);
 
-        // The tenth tenth_percentile is 100% so the image will have been
-        // rendered
-        if (tenth_percentiles == 10)
+        // Every time 10% or more of the pixels have been rendered, print to the
+        // terminal
+        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
         {
-          std::cout << "The image has been rendered." << std::endl;
-        }
-        else
-        {
-          // Update the terminal on the latest 10% done
-          std::cout << "Roughly " << 10 * tenth_percentiles
-                    << "\% of the pixels have been rendered." << std::endl;
+          // tenth_percentiles is used to keep track of the last 10th percent
+          // printed
+          tenth_percentiles = unsigned(10.0 * proportion_done);
+
+          // The tenth tenth_percentile is 100% so the image will have been
+          // rendered
+          if (tenth_percentiles == 10)
+          {
+            std::cout << "The image has been rendered." << std::endl;
+          }
+          else
+          {
+            // Update the terminal on the latest 10% done
+            std::cout << "Roughly " << 10 * tenth_percentiles
+                      << "\% of the pixels have been rendered." << std::endl;
+          }
         }
       }
 
@@ -1367,7 +1388,8 @@ public:
                      const unsigned &number_of_random_samples,
                      const double &intersection_threshold,
                      const double &no_intersection_threshold,
-                     const double &difference_size)
+                     const double &difference_size,
+                     const bool &silent = false)
   {
 #ifdef TEST
     // If no random samples are taken, no image will be produced and a division
@@ -1397,28 +1419,32 @@ public:
     {
       // This section of code is for outputting the progress to the terminal
 
-      // Find the proportion of pixels calculated
-      proportion_done = double(i + 1) / double(resolution[0]);
-
-      // Every time 10% or more of the pixels have been rendered, print to the
-      // terminal
-      if (unsigned(10.0 * proportion_done) > tenth_percentiles)
+      // Don't output progress if 'silent' is true
+      if (!silent)
       {
-        // tenth_percentiles is used to keep track of the last 10th percent
-        // printed
-        tenth_percentiles = unsigned(10.0 * proportion_done);
+        // Find the proportion of pixels calculated
+        proportion_done = double(i + 1) / double(resolution[0]);
 
-        // The tenth tenth_percentile is 100% so the image will have been
-        // rendered
-        if (tenth_percentiles == 10)
+        // Every time 10% or more of the pixels have been rendered, print to the
+        // terminal
+        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
         {
-          std::cout << "The image has been rendered." << std::endl;
-        }
-        else
-        {
-          // Update the terminal on the latest 10% done
-          std::cout << "Roughly " << 10 * tenth_percentiles
-                    << "\% of the pixels have been rendered." << std::endl;
+          // tenth_percentiles is used to keep track of the last 10th percent
+          // printed
+          tenth_percentiles = unsigned(10.0 * proportion_done);
+
+          // The tenth tenth_percentile is 100% so the image will have been
+          // rendered
+          if (tenth_percentiles == 10)
+          {
+            std::cout << "The image has been rendered." << std::endl;
+          }
+          else
+          {
+            // Update the terminal on the latest 10% done
+            std::cout << "Roughly " << 10 * tenth_percentiles
+                      << "\% of the pixels have been rendered." << std::endl;
+          }
         }
       }
 
@@ -1797,13 +1823,16 @@ int main()
   double actual_answer = 0.0;
   unsigned maximum_number_of_bounces_validation = 100;
   unsigned number_of_samples = 1000;
-  unsigned maximum_number_of_Monte_Carlo_samples = 10000;
+  unsigned number_of_Monte_Carlo_samples_no_RR = 1;
+  unsigned maximum_number_of_Monte_Carlo_samples = 500;
   double rr_variance = 0.0;
+  double current_answer = 0.0;
+  unsigned fixed_bounces = 15;
 
 
   // Create an output data file
   std::ofstream validation_output_file;
-  validation_output_file.open("Output/Validation_Variable_Bounces");
+  validation_output_file.open("Output/Answer_Vs_Expected");
 
   // Output the headings for each column
   validation_output_file.width(10);
@@ -1823,8 +1852,11 @@ int main()
     actual_answer = 0.0;
     for (unsigned j = 0; j < number_of_samples; j++)
     {
-      actual_answer +=
-        validation_scene.Render_Image(number_of_bounces + 1, 1)(0, 0).x;
+      actual_answer += validation_scene
+                         .Render_Image(number_of_bounces + 1,
+                                       number_of_Monte_Carlo_samples_no_RR,
+                                       true)(0, 0)
+                         .x;
     }
     actual_answer /= number_of_samples;
 
@@ -1855,12 +1887,11 @@ int main()
   validation_output_file.close();
 
   //////////////////////////////////////////////////////////////////////////////
-  // Validation case for Russian Roulette
+  // Validation case for Variance
   //////////////////////////////////////////////////////////////////////////////
 
-
   // Open a new output file
-  validation_output_file.open("Output/Validation_Russian");
+  validation_output_file.open("Output/Variance");
 
   // Output the headings of the output data file
   validation_output_file.width(10);
@@ -1872,8 +1903,68 @@ int main()
   validation_output_file.width(25);
   validation_output_file << "Variance" << std::endl;
 
-  // Storage for temporarily needed output
-  double current_answer = 0.0;
+  // Calculate the expected value of the red component of the pixel colour via
+  // the power series L = L_e * sigma(k = 0 to number_of_bounces) (pi *
+  // brdf)^k.
+  expected_answer = 0.0;
+  for (unsigned j = 0; j < fixed_bounces + 1; j++)
+  {
+    expected_answer += pow(pi * validation_BRDF(Vec3(), Vec3(), Vec3()).x, j);
+  }
+  expected_answer *= validation_light_emitted(Vec3()).x;
+
+  // Run the validation case with increasing number of Monte-Carlo samples,
+  // increasing in steps of 10
+  for (unsigned i = 1; i < maximum_number_of_Monte_Carlo_samples / 10; i++)
+  {
+    // Reset the mean and variance with each different sample size taken.
+    actual_answer = 0.0;
+    rr_variance = 0.0;
+
+    // Find the mean and the variance of the rendering algorithm
+    for (unsigned j = 0; j < number_of_samples; j++)
+    {
+      current_answer =
+        validation_scene.Render_Image(fixed_bounces + 1, i * 10, true)(0, 0).x;
+
+      actual_answer += current_answer;
+
+      rr_variance += pow((current_answer - expected_answer), 2);
+    }
+    actual_answer /= number_of_samples;
+    rr_variance /= number_of_samples;
+
+    // Output the data for each value of the Monte-Carlo method sample size
+    validation_output_file.precision(15);
+    validation_output_file.width(10);
+    validation_output_file << i * 10;
+    validation_output_file.width(20);
+    validation_output_file << expected_answer;
+    validation_output_file.width(25);
+    validation_output_file << actual_answer;
+    validation_output_file.width(25);
+    validation_output_file << rr_variance << std::endl;
+  }
+
+  validation_output_file.close();
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Validation case for Russian Roulette
+  //////////////////////////////////////////////////////////////////////////////
+
+
+  // Open a new output file
+  validation_output_file.open("Output/RR_Variance");
+
+  // Output the headings of the output data file
+  validation_output_file.width(10);
+  validation_output_file << "No_Samples";
+  validation_output_file.width(20);
+  validation_output_file << "Expected_Answer";
+  validation_output_file.width(25);
+  validation_output_file << "Actual_Answer";
+  validation_output_file.width(25);
+  validation_output_file << "Variance" << std::endl;
 
   // Calculate the exact answer for the output case using the formula L =
   // L_e/(1.0 - pi * brdf)
@@ -1961,15 +2052,7 @@ Radiance purple_BRDF(const Vec3 &position,
 
 Radiance ceiling_light_emitted(const Vec3 &position)
 {
-  if (position.x < 0.385 && position.x > 0.315 && position.y < 0.035 &&
-      position.y > -0.035)
-  {
-    return Radiance(3.0, 3.0, 3.0);
-  }
-  else
-  {
-    return Radiance(0.0, 0.0, 0.0);
-  }
+  return Radiance(1.0, 1.0, 1.0);
 }
 
 Radiance test_BRDF(const Vec3 &position,
@@ -2039,17 +2122,15 @@ Radiance validation_BRDF(const Vec3 &position,
 
 int main()
 {
-  std::vector<unsigned> resolution;
-  resolution.push_back(128);
-  resolution.push_back(108);
+  std::vector<unsigned> resolution{1000, 500};
 
   Observer observer(Vec3(0.0, 0.0, 1.0),
                     Vec3(1.0, 0.0, 0.0),
                     Vec3(0.0, 0.0, 1.0),
-                    pi / 3.0,
+                    pi / 2.5,
                     resolution);
 
-  /*
+
   SceneRender scene(observer);
 
   double radius = 1000.0;
@@ -2080,42 +2161,71 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  scene.Render_Image_Multithreaded_Russian(100).Save("Cornell_Box_3.png");
-  */
 
-  std::vector<unsigned> test_resolution{100, 100};
+  Image nobounce = scene.Render_Image_Multithreaded(1, 100);
+  Image onebounce = scene.Render_Image_Multithreaded(2, 100);
+  Image twobounces = scene.Render_Image_Multithreaded(3, 100);
+  Image threebounces = scene.Render_Image_Multithreaded(4, 100);
+  Image fourbounces = scene.Render_Image_Multithreaded(5, 100);
 
-  Observer test_observer(Vec3(0.0, 0.0, 0.0),
-                         Vec3(1.0, 0.0, 0.0),
-                         Vec3(0.0, 0.0, 1.0),
-                         pi / 3.0,
-                         test_resolution);
+  Image first_bounce(1000, 500);
+  Image second_bounce(1000, 500);
+  Image third_bounce(1000, 500);
+  Image fourth_bounce(1000, 500);
 
-  SceneRenderSDF test_scene(test_observer);
+  for (unsigned i = 0; i < resolution[0]; i++)
+  {
+    for (unsigned j = 0; j < resolution[1]; j++)
+    {
+      first_bounce(i, j) = onebounce(i, j) - nobounce(i, j);
+      second_bounce(i, j) = twobounces(i, j) - onebounce(i, j);
+      third_bounce(i, j) = threebounces(i, j) - twobounces(i, j);
+      fourth_bounce(i, j) = fourbounces(i, j) - threebounces(i, j);
+    }
+  }
 
-  test_scene.SDF_Fct_Pt = sdf;
+  nobounce.Save("Images/NoBounce2.png");
+  first_bounce.Save("Images/FirstBounce2.png");
+  second_bounce.Save("Images/SecondBounce2.png");
+  third_bounce.Save("Images/ThirdBounce2.png");
+  fourth_bounce.Save("Images/FourthBounce2.png");
 
-  test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
 
-  test_scene.BRDF_Fct_Pt = test_BRDF;
+  /*
+    std::vector<unsigned> test_resolution{100, 100};
 
-  Vec3 ray_position(0.0, 0.0, 0.0);
-  Vec3 ray_direction(1.0, 0.0, 0.0);
+    Observer test_observer(Vec3(0.0, 0.0, 0.0),
+                           Vec3(1.0, 0.0, 0.0),
+                           Vec3(0.0, 0.0, 1.0),
+                           pi / 3.0,
+                           test_resolution);
 
-  Ray light_ray(ray_position, ray_direction);
+    SceneRenderSDF test_scene(test_observer);
 
-  unsigned nbounces = 5;
-  double intersection_threshold = 1e-8;
-  double no_intersection_threshold = 100.0;
-  double difference_size = 1e-8;
+    test_scene.SDF_Fct_Pt = sdf;
 
-  test_scene
-    .Render_Image(nbounces,
-                  100,
-                  intersection_threshold,
-                  no_intersection_threshold,
-                  difference_size)
-    .Save("Images/test.png");
+    test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
+
+    test_scene.BRDF_Fct_Pt = test_BRDF;
+
+    Vec3 ray_position(0.0, 0.0, 0.0);
+    Vec3 ray_direction(1.0, 0.0, 0.0);
+
+    Ray light_ray(ray_position, ray_direction);
+
+    unsigned nbounces = 5;
+    double intersection_threshold = 1e-8;
+    double no_intersection_threshold = 100.0;
+    double difference_size = 1e-8;
+
+    test_scene
+      .Render_Image(nbounces,
+                    100,
+                    intersection_threshold,
+                    no_intersection_threshold,
+                    difference_size)
+      .Save("Images/test.png");
+      */
 }
 
 #endif
