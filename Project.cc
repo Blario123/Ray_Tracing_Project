@@ -19,6 +19,130 @@ typedef Vec3 Radiance;
 const double pi = M_PI;
 const double pi_reciprocal = M_1_PI;
 
+// A large concession has been made here, we only allow our light rays to stay
+// in the positive region of the SDFs
+class SDF
+{
+public:
+  virtual ~SDF() {}
+
+  virtual double SDF_Fct(const Vec3 &position) const = 0;
+
+  virtual Vec3 Inverse_Transformation(const Vec3 &position)
+  {
+    if (Inverse_Transformation_Fct_Pt == 0)
+    {
+      return position;
+    }
+    else
+    {
+      return Inverse_Transformation_Fct_Pt(position);
+    }
+  }
+
+  // This function returns the components of the light emitted from this
+  // object's surface given a position on the surface and the direction of the
+  // light.
+  virtual Radiance Light_Emitted(const Vec3 &position)
+  {
+    if (Light_Emitted_Fct_Pt == 0)
+    {
+      // If the pointer to the light emitted is a null pointer, return the zero
+      // vector
+      Radiance zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If Light_Emitted_Fct_Pt points to a function, evaluate this function
+      return (*Light_Emitted_Fct_Pt)(position);
+    }
+  } // End of Light_Emitted
+
+
+  // This function returns the Bidirection Reflectance Distribution Function
+  // given a position, incident light vector and outgoing light vector.
+  virtual Radiance BRDF(const Vec3 &position,
+                        const Vec3 &incident_light_vector,
+                        const Vec3 &outgoing_light_vector)
+  {
+    if (BRDF_Fct_Pt == 0)
+    {
+      // If the pointer to the BRDF is a null pointer, return the zero vector
+      Radiance zero_vector(0.0, 0.0, 0.0);
+      return zero_vector;
+    }
+    else
+    {
+      // If BRDF_Fct_Pt points to a function, evaluate this function
+      return (*BRDF_Fct_Pt)(
+        position, incident_light_vector, outgoing_light_vector);
+    }
+  } // End of BRDF
+
+
+  virtual Vec3 Outward_Normal(const Vec3 &position,
+                              const double &difference_size)
+  {
+    // The central finite difference of the SDF is taken in all three coordinate
+    // directions in order to get the gradient of the SDF. This gradient is a
+    // normal to any isosurface at 'position'. This gradient is then normalised
+    // to get the unit normal, then the dot product is taken with 'direction'.
+    // If the dot product is negative, we flip the signs of the normal and take
+    // that as the normal.
+
+    // Initialise storage
+    Vec3 normal(0.0, 0.0, 0.0);
+
+    // Find the non-unit normal, division by step size is unnecessary since the
+    // normal will be normalised
+    normal.x =
+      SDF_Fct(Vec3(position.x + difference_size, position.y, position.z)) -
+      SDF_Fct(Vec3(position.x - difference_size, position.y, position.z));
+    normal.y =
+      SDF_Fct(Vec3(position.x, position.y + difference_size, position.z)) -
+      SDF_Fct(Vec3(position.x, position.y - difference_size, position.z));
+    normal.z =
+      SDF_Fct(Vec3(position.x, position.y, position.z + difference_size)) -
+      SDF_Fct(Vec3(position.x, position.y, position.z - difference_size));
+
+    // Find the unit normal
+    normal.normalise();
+
+    return normal;
+  }
+
+  Vec3 (*Inverse_Transformation_Fct_Pt)(const Vec3 &position) = 0;
+
+  // A function pointer to the light emitted
+  Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
+
+  // A function pointer to the BRDF
+  Radiance (*BRDF_Fct_Pt)(const Vec3 &position,
+                          const Vec3 &incident_light_vector,
+                          const Vec3 &outgoing_light_vector) = 0;
+
+  bool invert_SDF = false;
+};
+
+class SphereSDF : public SDF
+{
+  SphereSDF(const double &radius_, const bool &invert_SDF_ = false)
+  {
+    radius = radius_;
+
+    invert_SDF = invert_SDF_;
+  }
+
+  double SDF_Fct(const Vec3 &position)
+  {
+    return Inverse_Transformation(position).norm() - radius;
+  }
+
+private:
+  double radius;
+};
+
 // The base class for physical objects present in the scene
 class PhysicalObject
 {
@@ -412,6 +536,20 @@ public:
   }
 
 
+  // Add SDF defined objects to the scene via a unique pointer
+  void Add_Object(std::unique_ptr<SDF> &object_upt)
+  {
+    sdf_object_pt_vector.push_back(std::move(object_upt));
+  }
+
+
+  // The same function as above but now accepting rvalues
+  void Add_Object(std::unique_ptr<SDF> &&object_upt)
+  {
+    sdf_object_pt_vector.push_back(std::move(object_upt));
+  }
+
+
   // Random hemisphere vector generator
   Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
   {
@@ -460,6 +598,39 @@ public:
     return random_vector;
   } // End of Hemisphere_Vector_Generator
 
+  double SDF_Fct(const Vec3 &position) const
+  {
+    double minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
+
+    for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
+    {
+      double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
+      if (current_distance < minimum_distance)
+      {
+        minimum_distance = current_distance;
+      }
+    }
+
+    return minimum_distance;
+  }
+
+  double SDF_Fct(const Vec3 &position, int &closest_sdf_index) const
+  {
+    double minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
+    closest_sdf_index = 0;
+
+    for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
+    {
+      double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
+      if (current_distance < minimum_distance)
+      {
+        minimum_distance = current_distance;
+        closest_sdf_index = i;
+      }
+    }
+
+    return minimum_distance;
+  }
 
   // Loop over all the objects in the scene and check which object was
   // intersected with first by the argument Ray "ray".
@@ -530,6 +701,23 @@ public:
                   smallest_distance * light_ray.Get_Direction_Vector();
 
     return vector;
+
+    // I want to find the closest intersection with an SDF here
+    // pseudo-code/explanation
+    double distance_travelled = 0.0;
+
+    // Only work on the SDF if the value of the SDF at the origin of light_ray
+    // is less than the previous intersection found.
+
+    // Find the intersection of a ray with an SDF, find the specific SDF object
+    // it intersects with too
+
+    // Check which is closer, then change the intersection_indexes to the
+    // correct object, change index to -1 for the one which doesn't intersect
+    // first. (Bad explanation but you know what you mean)
+
+    // Return the intersection point
+
   } // End of First_Intersection_Point
 
 
@@ -1101,6 +1289,10 @@ public:
 private:
   // A vector containing pointers to the physical objects in the scene
   std::vector<std::unique_ptr<PhysicalObject>> object_pt_vector;
+
+  // A vector containing pointers to the physical objects described by SDFs in
+  // the scene
+  std::vector<std::unique_ptr<SDF>> sdf_object_pt_vector;
 
   // A pointer to the Observer of the scene
   std::unique_ptr<Observer> observer_pt;
@@ -2179,16 +2371,7 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
 
-  Image nobounce = scene.Render_Image_Russian(1);
-  nobounce.Save("Images/1Samples.png");
-  Image onebounce = scene.Render_Image_Russian(10);
-  onebounce.Save("Images/10Samples.png");
-  Image twobounces = scene.Render_Image_Russian(100);
-  twobounces.Save("Images/100Samples.png");
-  Image threebounces = scene.Render_Image_Russian(1000);
-  threebounces.Save("Images/1000Samples.png");
-  Image fourbounces = scene.Render_Image_Russian(10000);
-  fourbounces.Save("Images/10000Samples.png");
+  scene.Render_Image_Russian(10).Save("Images/Test.png");
 
 
   /*
