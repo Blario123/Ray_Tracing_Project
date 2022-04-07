@@ -8,6 +8,7 @@ LaTeX_Report_Files/*.pdf
 !LaTeX_Report_Files/
 !Materials/
 !literature/
+!Images/
 !cgi_instructions.pdf
 !Output/
 !Headers/

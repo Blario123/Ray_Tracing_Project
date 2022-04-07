@@ -545,6 +545,8 @@ public:
       return Radiance(0.0, 0.0, 0.0);
     }
 
+    Radiance resulting_light(0.0, 0.0, 0.0);
+
     // Initialise the index of the first object in object_pt_vector hit by
     // light_ray
     int index_of_object_hit = 0;
@@ -561,9 +563,22 @@ public:
       return Radiance(0.0, 0.0, 0.0);
     }
 
-    // First, find the light emitted by the object in the direction of light_ray
-    Radiance resulting_light =
+    // First, find the light emitted by the object in the direction of
+    // light_ray
+    resulting_light =
       object_pt_vector[index_of_object_hit]->Light_Emitted(intersection_point);
+
+    /* Uncomment this and put the above in comments in order to only output the
+       contribution from a certain bounce.
+        if (bounces_remaining == 1)
+        {
+          // First, find the light emitted by the object in the direction of
+          // light_ray
+          resulting_light =
+       object_pt_vector[index_of_object_hit]->Light_Emitted(
+            intersection_point);
+        }
+        */
 
     // Find the normal to the surface hit by light_ray at the point of
     // intersection
@@ -2015,39 +2030,41 @@ int main()
 //////////////////////////// Start of Driver Code //////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+double damping_factor = 0.5;
+
 Radiance red_BRDF(const Vec3 &position,
                   const Vec3 &incident_light_vector,
                   const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(1.0, 0.0, 0.0);
+  return damping_factor * pi_reciprocal * Radiance(1.0, 0.2, 0.2);
 }
 
 Radiance blue_BRDF(const Vec3 &position,
                    const Vec3 &incident_light_vector,
                    const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(0.0, 0.0, 1.0);
+  return damping_factor * pi_reciprocal * Radiance(0.2, 0.2, 1.0);
 }
 
 Radiance white_BRDF(const Vec3 &position,
                     const Vec3 &incident_light_vector,
                     const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(1.0, 1.0, 1.0);
+  return damping_factor * pi_reciprocal * Radiance(1.0, 1.0, 1.0);
 }
 
 Radiance pink_BRDF(const Vec3 &position,
                    const Vec3 &incident_light_vector,
                    const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(1.0, 0.0, 1.0);
+  return damping_factor * pi_reciprocal * Radiance(1.0, 0.2, 1.0);
 }
 
 Radiance purple_BRDF(const Vec3 &position,
                      const Vec3 &incident_light_vector,
                      const Vec3 &outgoing_light_vector)
 {
-  return pi_reciprocal * Radiance(191.0, 64.0, 191.0) / 255.0;
+  return damping_factor * pi_reciprocal * Radiance(191.0, 64.0, 191.0) / 255.0;
 }
 
 Radiance ceiling_light_emitted(const Vec3 &position)
@@ -2162,33 +2179,16 @@ int main()
   scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
 
-  Image nobounce = scene.Render_Image_Multithreaded(1, 100);
-  Image onebounce = scene.Render_Image_Multithreaded(2, 100);
-  Image twobounces = scene.Render_Image_Multithreaded(3, 100);
-  Image threebounces = scene.Render_Image_Multithreaded(4, 100);
-  Image fourbounces = scene.Render_Image_Multithreaded(5, 100);
-
-  Image first_bounce(1000, 500);
-  Image second_bounce(1000, 500);
-  Image third_bounce(1000, 500);
-  Image fourth_bounce(1000, 500);
-
-  for (unsigned i = 0; i < resolution[0]; i++)
-  {
-    for (unsigned j = 0; j < resolution[1]; j++)
-    {
-      first_bounce(i, j) = onebounce(i, j) - nobounce(i, j);
-      second_bounce(i, j) = twobounces(i, j) - onebounce(i, j);
-      third_bounce(i, j) = threebounces(i, j) - twobounces(i, j);
-      fourth_bounce(i, j) = fourbounces(i, j) - threebounces(i, j);
-    }
-  }
-
-  nobounce.Save("Images/NoBounce2.png");
-  first_bounce.Save("Images/FirstBounce2.png");
-  second_bounce.Save("Images/SecondBounce2.png");
-  third_bounce.Save("Images/ThirdBounce2.png");
-  fourth_bounce.Save("Images/FourthBounce2.png");
+  Image nobounce = scene.Render_Image_Russian(1);
+  nobounce.Save("Images/1Samples.png");
+  Image onebounce = scene.Render_Image_Russian(10);
+  onebounce.Save("Images/10Samples.png");
+  Image twobounces = scene.Render_Image_Russian(100);
+  twobounces.Save("Images/100Samples.png");
+  Image threebounces = scene.Render_Image_Russian(1000);
+  threebounces.Save("Images/1000Samples.png");
+  Image fourbounces = scene.Render_Image_Russian(10000);
+  fourbounces.Save("Images/10000Samples.png");
 
 
   /*
