@@ -19,23 +19,33 @@ typedef Vec3 Radiance;
 const double pi = M_PI;
 const double pi_reciprocal = M_1_PI;
 
-// A large concession has been made here, we only allow our light rays to stay
-// in the positive region of the SDFs
+// The base class for SDF-defined surfaces in the scene. With the current
+// implementation of SDFs, we may only allow our light rays to stay in the
+// positive regions of the SDFs. Otherwise, we may get arbitrary behaviour.
 class SDF
 {
 public:
+  // Do nothing destructor
   virtual ~SDF() {}
 
+  // Pure virtual function for the SDF to be defined in derived classes.
   virtual double SDF_Fct(const Vec3 &position) const = 0;
 
-  virtual Vec3 Inverse_Transformation(const Vec3 &position)
+  // The function describing the inverse of the transformation of the position
+  // of the current SDF-defined surface. The function is defined via a function
+  // pointer.
+  virtual Vec3 Inverse_Transformation(const Vec3 &position) const
   {
+    // If there is no inverse transformation defined, don't apply the inverse
+    // transformation to the position vector.
     if (Inverse_Transformation_Fct_Pt == 0)
     {
       return position;
     }
     else
     {
+      // If there is an inverse transformation defined, apply it to the position
+      // vector.
       return Inverse_Transformation_Fct_Pt(position);
     }
   }
@@ -81,6 +91,8 @@ public:
   } // End of BRDF
 
 
+  // This function obtains the outward unit normal to the current instance of
+  // the SDF-defined defined surface via the central finite difference method.
   virtual Vec3 Outward_Normal(const Vec3 &position,
                               const double &difference_size)
   {
@@ -112,6 +124,7 @@ public:
     return normal;
   }
 
+  // A function pointer to the inverse transformation of the SDF surface
   Vec3 (*Inverse_Transformation_Fct_Pt)(const Vec3 &position) = 0;
 
   // A function pointer to the light emitted
@@ -122,26 +135,52 @@ public:
                           const Vec3 &incident_light_vector,
                           const Vec3 &outgoing_light_vector) = 0;
 
+  // In order to keep consistency in the distance of the global SDF, we must
+  // enforce that light rays may only travel in the positive region of an SDF.
+  // Therefore, we must be able to choose the inside and outside of an SDF which
+  // we do by flipping the sign of an SDF defining a shape.
   bool invert_SDF = false;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// End of SDF ///////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// Start of SphereSDF ///////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// The class defining an sphere via an SDF.
 class SphereSDF : public SDF
 {
+public:
+  // SphereSDF constructor: Set the radius and the inside/outside of the sphere
   SphereSDF(const double &radius_, const bool &invert_SDF_ = false)
   {
+    // Set the radius
     radius = radius_;
 
+    // The SDF is positive outside of the sphere unless invert_SDF is true.
     invert_SDF = invert_SDF_;
   }
 
-  double SDF_Fct(const Vec3 &position)
+  // Define the SDF function of a sphere.
+  double SDF_Fct(const Vec3 &position) const
   {
+    // Apply the inverse transformation to the position vector in order to
+    // transform the SDF. Calculate the SDF using this inversely transformed
+    // position vector.
     return Inverse_Transformation(position).norm() - radius;
   }
 
 private:
+  // Radius of the sphere
   double radius;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////// End of SphereSDF ////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// Start of PhysicalObject ////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 // The base class for physical objects present in the scene
 class PhysicalObject
@@ -598,12 +637,17 @@ public:
     return random_vector;
   } // End of Hemisphere_Vector_Generator
 
+  // Take the union of the multiple SDFs provided, by taking the minimum value
   double SDF_Fct(const Vec3 &position) const
   {
+    // Set the minimum SDF value equal to the SDF of the first SDF provided
     double minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
 
+    // Loop through the rest of the SDFs and find the minimum value of the SDFs
+    // at "position"
     for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
     {
+      // If we find a smaller SDF value, set minimum_distance to that value
       double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
       if (current_distance < minimum_distance)
       {
@@ -614,24 +658,186 @@ public:
     return minimum_distance;
   }
 
-  double SDF_Fct(const Vec3 &position, int &closest_sdf_index) const
+  // Take the union of the multiple SDFs provided, by taking the minimum value.
+  // The second argument returns the index of the smallest SDF in
+  // sdf_object_pt_vector. The reason for having sdf_intersection_index, is to
+  // allow us to find out which surface light rays are intersecting with so we
+  // can find the appropriate BRDF and Light_Emitted function.
+  double SDF_Fct(const Vec3 &position, int &sdf_intersection_index) const
   {
+    // Set the minimum SDF value equal to the SDF of the first SDF provided, and
+    // set the value of sdf_intersection_index to the index of this first SDF.
     double minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
-    closest_sdf_index = 0;
+    sdf_intersection_index = 0;
 
+    // Loop through the rest of the SDFs and find the minimum value of the SDFs
+    // at "position". Also set sdf_intersection_index to the corresponding index
+    // value.
     for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
     {
+      // If we find a smaller SDF value, set minimum_distance and
+      // sdf_intersection_index
       double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
       if (current_distance < minimum_distance)
       {
         minimum_distance = current_distance;
-        closest_sdf_index = i;
+        sdf_intersection_index = i;
       }
     }
 
     return minimum_distance;
   }
 
+  // Loop over all the objects in the scene, then all the SDF-defined objects in
+  // the scene to find the first intersection of light_ray with the objects in
+  // the scene. The two int arguments return the index of the closest object
+  // that light_ray intersects with, if either return -1, there has been no
+  // intersection with the non SDF-defined objects in the scene or the
+  // SDF-defined objects in the scene. The argument
+  // threshold_intersection_distance is the distance at which we consider a
+  // light_ray to have intersected with an SDF-defined surface in the scene. The
+  // argument threshold_no_intersection_distance is the distance at which we say
+  // there has been no intersection between light_ray and an SDF-defined
+  // surface.
+  Vec3 First_Intersection_Point(
+    const Ray &light_ray,
+    int &object_intersection_index,
+    int &sdf_intersection_index,
+    const double &threshold_intersection_distance,
+    const double &threshold_no_intersection_distance)
+  {
+    // Store the indices of the closest intersection that light_ray intersects
+    // with. Only one of these indices can not be -1 when this function returns
+    // since only one object is the closest object that light_ray intersects
+    // with. (At least for the purposes of coding this up)
+    object_intersection_index = -1;
+    sdf_intersection_index = -1;
+
+    // Store the SDF value at the origin of light_ray. These two variables are
+    // allocated for use in finding the intersection of light_ray with an SDF.
+    double safe_travel_distance =
+      std::abs(SDF_Fct(light_ray.Get_Initial_Position()));
+    double new_safe_travel_distance = safe_travel_distance;
+
+    // Store the smallest distance from the light ray source to an intersection
+    // along with the index of the corresponding object in object_pt_vector.
+    double smallest_distance = 0.0;
+
+    // Store the distance of the light ray to the intersection with the current
+    // object being looped over.
+    double current_distance = 0.0;
+
+    // Loop over every object in the scene to find an intersection
+    for (unsigned i = 0; i < object_pt_vector.size(); i++)
+    {
+      // If an intersection has already been found, check whether this new
+      // intersection is closer to the light ray source than the previous
+      // closest intersection.
+      if (object_intersection_index != -1)
+      {
+        // Check whether this intersection is closer than the previous closest
+        // one. If so, replace smallest_distance
+        if (object_pt_vector[i]->Intersection_Check(light_ray,
+                                                    current_distance) &&
+            current_distance < smallest_distance)
+        {
+          smallest_distance = current_distance;
+          object_intersection_index = i;
+        }
+      }
+      // If an intersection hasn't been found yet, any intersection will be the
+      // closest intersection so far.
+      else
+      {
+        if (object_pt_vector[i]->Intersection_Check(light_ray,
+                                                    current_distance))
+        {
+          // This section of code will only be invoked when the first
+          // intersection is found.
+          smallest_distance = current_distance;
+          object_intersection_index = i;
+        }
+      }
+    }
+
+    // The closest intersection of light_ray with a non-SDF defined surface has
+    // been found above, now we find the closest intersection of light_ray with
+    // an SDF defined surface using the standard iteration method.
+
+    // This variable keeps track of the distance travelled along the ray from
+    // the origin
+    double distance_travelled = 0.0;
+
+    // If the SDF is smaller than the distance to the closest intersection with
+    // a non-SDF defined surface, or the light ray hasn't intersected with a
+    // non-SDF defined surface, we then work on finding the closest intersection
+    // with SDF defined surfaces.
+    if (safe_travel_distance < smallest_distance ||
+        object_intersection_index == -1)
+    {
+      // Travel along the light_ray while the light_ray has not intersected with
+      // an SDF, has not gotten too far away from a surface, or has already
+      // passed through a non-SDF defined surface
+      while (safe_travel_distance >= threshold_intersection_distance &&
+             safe_travel_distance <= threshold_no_intersection_distance &&
+             distance_travelled < smallest_distance)
+      {
+        // Move along the ray by "safe_travel_distance" and evaluate the SDF,
+        // the value of the SDF is the distance we travel in the next iteration,
+        // so we save it as "new_safe_travel_distance"
+        new_safe_travel_distance =
+          std::abs(SDF_Fct(light_ray.Get_Initial_Position() +
+                           (distance_travelled + safe_travel_distance) *
+                             light_ray.Get_Direction_Vector()));
+
+        // Add the distance travelled in this iteration to "distance_travelled"
+        distance_travelled += safe_travel_distance;
+
+        // Set the distance we travel in the next iteration
+        safe_travel_distance = new_safe_travel_distance;
+      }
+
+      // If we have intersected with an SDF, we return the index of the SDF that
+      // our ray intersected with and the point of intersection.
+      if (safe_travel_distance < threshold_intersection_distance)
+      {
+        // If we get to this block of code, our light ray will have intersected
+        // an SDF before a non-SDF surface. Therefore we first find the
+        // intersection point.
+        Vec3 intersection_point =
+          light_ray.Get_Initial_Position() +
+          distance_travelled * light_ray.Get_Direction_Vector();
+
+        // Set the value of sdf_intersection_index to the index of the SDF of
+        // intersection.
+        SDF_Fct(intersection_point, sdf_intersection_index);
+
+        // Set object_intersection_index to -1 since our point of first
+        // intersection is with an SDF.
+        object_intersection_index = -1;
+
+        return intersection_point;
+      }
+    }
+
+    // If we reach this section of the code, our light ray has either
+    // intersected with a non-SDF surface first or has gotten too far away from
+    // the SDF surfaces.
+
+    // We return the point of intersection between our ray and a
+    //  non-SDF surface if there has been an intersection.
+    if (object_intersection_index != -1)
+    {
+      return (light_ray.Get_Initial_Position() +
+              smallest_distance * light_ray.Get_Direction_Vector());
+    }
+
+    // If there has been no intersection at all, return the zero vector.
+    return Vec3(0.0, 0.0, 0.0);
+
+  } // End of First_Intersection_Point
+
+  // Rupinder: Once this function is completely deprecated, remove it.
   // Loop over all the objects in the scene and check which object was
   // intersected with first by the argument Ray "ray".
   Vec3 First_Intersection_Point(const Ray &light_ray,
@@ -2329,6 +2535,11 @@ Radiance validation_BRDF(const Vec3 &position,
   return Vec3(0.5 * pi_reciprocal, 0.0, 0.0);
 }
 
+Vec3 inverse_move_sphere(const Vec3 &position)
+{
+  return position - Vec3(5.0, 0.0, 0.0);
+}
+
 int main()
 {
   std::vector<unsigned> resolution{1000, 500};
@@ -2342,73 +2553,102 @@ int main()
 
   SceneRender scene(observer);
 
-  double radius = 1000.0;
+  SphereSDF sphere_sdf(3.1);
+  Sphere sphere_1(Vec3(5.0, 0.0, 0.0), 3.0);
 
-  Sphere floor(Vec3(1.0, 0.0, 0.9 - radius), radius);
-  Sphere ceiling(Vec3(2.5, 0.0, 1.1 + radius), radius);
-  Sphere left_wall(Vec3(2.5, radius + 0.1, 2.5), radius);
-  Sphere right_wall(Vec3(2.5, -radius - 0.1, 2.5), radius);
-  Sphere back_wall(Vec3(radius + 0.5, 0.0, 2.5), radius);
-  Sphere sphere_1(Vec3(0.25, 0.05, 0.93), 0.03);
-  Sphere sphere_2(Vec3(0.4, -0.035, 0.95), 0.05);
+  sphere_sdf.Inverse_Transformation_Fct_Pt = inverse_move_sphere;
 
-  floor.BRDF_Fct_Pt = white_BRDF;
-  ceiling.BRDF_Fct_Pt = white_BRDF;
-  left_wall.BRDF_Fct_Pt = red_BRDF;
-  right_wall.BRDF_Fct_Pt = blue_BRDF;
-  back_wall.BRDF_Fct_Pt = white_BRDF;
-  sphere_1.BRDF_Fct_Pt = pink_BRDF;
-  sphere_2.BRDF_Fct_Pt = purple_BRDF;
-
-  ceiling.Light_Emitted_Fct_Pt = ceiling_light_emitted;
-
-  scene.Add_Object(std::make_unique<Sphere>(floor));
-  scene.Add_Object(std::make_unique<Sphere>(ceiling));
-  scene.Add_Object(std::make_unique<Sphere>(left_wall));
-  scene.Add_Object(std::make_unique<Sphere>(right_wall));
-  scene.Add_Object(std::make_unique<Sphere>(back_wall));
+  scene.Add_Object(std::make_unique<SphereSDF>(sphere_sdf));
   scene.Add_Object(std::make_unique<Sphere>(sphere_1));
-  scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
+  Vec3 ray_origin(0.0, 0.0, 0.0);
+  Vec3 ray_direction(1.0, 0.0, 0.0);
 
-  scene.Render_Image_Russian(10).Save("Images/Test.png");
+  Ray light_ray(ray_origin, ray_direction);
+  int object_intersection_index = -1;
+  int sdf_intersection_index = -1;
+  double threshold_intersection_distance = 1e-8;
+  double threshold_no_intersection_distance = 100.0;
 
+  Vec3 intersection =
+    scene.First_Intersection_Point(light_ray,
+                                   object_intersection_index,
+                                   sdf_intersection_index,
+                                   threshold_intersection_distance,
+                                   threshold_no_intersection_distance);
+
+  std::cout << intersection << std::endl;
+  std::cout << object_intersection_index << std::endl;
+  std::cout << sdf_intersection_index << std::endl;
 
   /*
-    std::vector<unsigned> test_resolution{100, 100};
+    double radius = 1000.0;
 
-    Observer test_observer(Vec3(0.0, 0.0, 0.0),
-                           Vec3(1.0, 0.0, 0.0),
-                           Vec3(0.0, 0.0, 1.0),
-                           pi / 3.0,
-                           test_resolution);
+    Sphere floor(Vec3(1.0, 0.0, 0.9 - radius), radius);
+    Sphere ceiling(Vec3(2.5, 0.0, 1.1 + radius), radius);
+    Sphere left_wall(Vec3(2.5, radius + 0.1, 2.5), radius);
+    Sphere right_wall(Vec3(2.5, -radius - 0.1, 2.5), radius);
+    Sphere back_wall(Vec3(radius + 0.5, 0.0, 2.5), radius);
+    Sphere sphere_1(Vec3(0.25, 0.05, 0.93), 0.03);
+    Sphere sphere_2(Vec3(0.4, -0.035, 0.95), 0.05);
 
-    SceneRenderSDF test_scene(test_observer);
+    floor.BRDF_Fct_Pt = white_BRDF;
+    ceiling.BRDF_Fct_Pt = white_BRDF;
+    left_wall.BRDF_Fct_Pt = red_BRDF;
+    right_wall.BRDF_Fct_Pt = blue_BRDF;
+    back_wall.BRDF_Fct_Pt = white_BRDF;
+    sphere_1.BRDF_Fct_Pt = pink_BRDF;
+    sphere_2.BRDF_Fct_Pt = purple_BRDF;
 
-    test_scene.SDF_Fct_Pt = sdf;
+    ceiling.Light_Emitted_Fct_Pt = ceiling_light_emitted;
 
-    test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
+    scene.Add_Object(std::make_unique<Sphere>(floor));
+    scene.Add_Object(std::make_unique<Sphere>(ceiling));
+    scene.Add_Object(std::make_unique<Sphere>(left_wall));
+    scene.Add_Object(std::make_unique<Sphere>(right_wall));
+    scene.Add_Object(std::make_unique<Sphere>(back_wall));
+    scene.Add_Object(std::make_unique<Sphere>(sphere_1));
+    scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-    test_scene.BRDF_Fct_Pt = test_BRDF;
 
-    Vec3 ray_position(0.0, 0.0, 0.0);
-    Vec3 ray_direction(1.0, 0.0, 0.0);
+    scene.Render_Image_Russian(10).Save("Images/Test.png");
 
-    Ray light_ray(ray_position, ray_direction);
 
-    unsigned nbounces = 5;
-    double intersection_threshold = 1e-8;
-    double no_intersection_threshold = 100.0;
-    double difference_size = 1e-8;
 
-    test_scene
-      .Render_Image(nbounces,
-                    100,
-                    intersection_threshold,
-                    no_intersection_threshold,
-                    difference_size)
-      .Save("Images/test.png");
-      */
+      std::vector<unsigned> test_resolution{100, 100};
+
+      Observer test_observer(Vec3(0.0, 0.0, 0.0),
+                             Vec3(1.0, 0.0, 0.0),
+                             Vec3(0.0, 0.0, 1.0),
+                             pi / 3.0,
+                             test_resolution);
+
+      SceneRenderSDF test_scene(test_observer);
+
+      test_scene.SDF_Fct_Pt = sdf;
+
+      test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
+
+      test_scene.BRDF_Fct_Pt = test_BRDF;
+
+      Vec3 ray_position(0.0, 0.0, 0.0);
+      Vec3 ray_direction(1.0, 0.0, 0.0);
+
+      Ray light_ray(ray_position, ray_direction);
+
+      unsigned nbounces = 5;
+      double intersection_threshold = 1e-8;
+      double no_intersection_threshold = 100.0;
+      double difference_size = 1e-8;
+
+      test_scene
+        .Render_Image(nbounces,
+                      100,
+                      intersection_threshold,
+                      no_intersection_threshold,
+                      difference_size)
+        .Save("Images/test.png");
+        */
 }
 
 #endif
