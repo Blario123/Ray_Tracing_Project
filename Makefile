@@ -4,8 +4,5 @@ Project: Project.cc Headers/Ray.h Headers/Image.h Headers/Vec3.h Headers/stb_ima
 FastProject: Project.cc Headers/Ray.h Headers/Image.h Headers/Vec3.h Headers/stb_image_write.h
 	g++ -std=c++20 -O3 Project.cc -o FastProject -pthread
 
-TestProject: Project.cc Headers/Ray.h Headers/Image.h Headers/Vec3.h Headers/stb_image_write.h
-	g++ -std=c++20 Project.cc -DTEST -o TestProject -pthread
-
 ValidateProject: Project.cc Headers/Ray.h Headers/Image.h Headers/Vec3.h Headers/stb_image_write.h
 	g++ -std=c++20 Project.cc -DVALIDATE -o ValidateProject -pthread

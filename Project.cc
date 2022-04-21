@@ -113,11 +113,13 @@ public:
         Vec3(position.x + finite_difference_size, position.y, position.z)) -
       SDF_Fct(
         Vec3(position.x - finite_difference_size, position.y, position.z));
+
     normal.y =
       SDF_Fct(
         Vec3(position.x, position.y + finite_difference_size, position.z)) -
       SDF_Fct(
         Vec3(position.x, position.y - finite_difference_size, position.z));
+
     normal.z =
       SDF_Fct(
         Vec3(position.x, position.y, position.z + finite_difference_size)) -
@@ -284,14 +286,6 @@ public:
   // The constructor for a sphere requiring only a centre and a radius
   Sphere(const Vec3 &centre_, const double &radius_)
   {
-#ifdef TEST
-    if (radius_ <= 0.0)
-    {
-      throw std::invalid_argument(
-        "Can not create a sphere with a non-positive radius");
-    }
-#endif
-
     // Define the private member data values
     centre = centre_;
     radius = radius_;
@@ -306,15 +300,6 @@ public:
   {
     Vec3 initial_position = light_ray.Get_Initial_Position();
     Vec3 direction_vector = light_ray.Get_Direction_Vector();
-
-#ifdef TEST
-    // Check that the direction vector of the ray is normalised
-    if (direction_vector.norm() - 1.0 > 1.0e-8)
-    {
-      throw std::invalid_argument(
-        "The Ray given has a non-normalised direction vector");
-    }
-#endif
 
     // By substituting the equation of a line into the equation of a sphere, we
     // obtain a quadratic equation for the distance a light ray must travel with
@@ -409,15 +394,6 @@ public:
   {
     // Find the outward normal of a sphere
     Vec3 normal = position - centre;
-
-#ifdef TEST
-    // Check that the position given is on the surface of the sphere
-    if (normal.norm2() - radius * radius > 1.0e-8)
-    {
-      throw std::invalid_argument(
-        "The position given must be on the sphere's surface.");
-    }
-#endif
 
     // Normalise the vector
     normal.normalise();
@@ -654,6 +630,7 @@ public:
     return random_vector;
   } // End of Hemisphere_Vector_Generator
 
+
   // Take the union of the multiple SDFs provided, by taking the minimum value
   double SDF_Fct(const Vec3 &position) const
   {
@@ -700,7 +677,7 @@ public:
       // Set the minimum SDF value equal to the SDF of the first SDF provided,
       // and
       // set the value of sdf_intersection_index to the index of this first SDF.
-      double minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
+      minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
       sdf_intersection_index = 0;
     }
 
@@ -711,7 +688,7 @@ public:
     {
       // If we find a smaller SDF value, set minimum_distance and
       // sdf_intersection_index
-      double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
+      current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
       if (current_distance < minimum_distance)
       {
         minimum_distance = current_distance;
@@ -761,6 +738,8 @@ public:
     // object being looped over.
     double current_distance = 0.0;
 
+    Vec3 intersection_point(0.0, 0.0, 0.0);
+
     // Loop over every object in the scene to find an intersection
     for (unsigned i = 0; i < object_pt_vector.size(); i++)
     {
@@ -799,16 +778,16 @@ public:
     // an SDF defined surface using the standard iteration method.
 
     // This variable keeps track of the distance travelled along the ray from
-    // the origin
+    // the origin of light_ray
     double distance_travelled = 0.0;
 
     // If the SDF is smaller than the distance to the closest intersection with
     // a non-SDF defined surface, or the light ray hasn't intersected with a
     // non-SDF defined surface, we then work on finding the closest intersection
     // with SDF defined surfaces.
-    if ((safe_travel_distance < smallest_distance &&
-         sdf_object_pt_vector.size() > 0) ||
-        object_intersection_index == -1)
+
+    if (sdf_object_pt_vector.size() > 0 &&
+        safe_travel_distance < smallest_distance)
     {
       // Travel along the light_ray while the light_ray has not intersected with
       // an SDF, has not gotten too far away from a surface, or has already
@@ -832,6 +811,7 @@ public:
         // Set the distance we travel in the next iteration
         safe_travel_distance = new_safe_travel_distance;
       }
+
       // If we have intersected with an SDF, we return the index of the SDF that
       // our ray intersected with and the point of intersection.
       if (safe_travel_distance < threshold_intersection_distance)
@@ -839,7 +819,7 @@ public:
         // If we get to this block of code, our light ray will have intersected
         // an SDF before a non-SDF surface. Therefore we first find the
         // intersection point.
-        Vec3 intersection_point =
+        intersection_point =
           light_ray.Get_Initial_Position() +
           distance_travelled * light_ray.Get_Direction_Vector();
 
@@ -863,101 +843,15 @@ public:
     //  non-SDF surface if there has been an intersection.
     if (object_intersection_index != -1)
     {
-      return (light_ray.Get_Initial_Position() +
-              smallest_distance * light_ray.Get_Direction_Vector());
+      intersection_point =
+        (light_ray.Get_Initial_Position() +
+         smallest_distance * light_ray.Get_Direction_Vector());
+
+      return intersection_point;
     }
 
     // If there has been no intersection at all, return the zero vector.
     return Vec3(0.0, 0.0, 0.0);
-
-  } // End of First_Intersection_Point
-
-  // Rupinder: Once this function is completely deprecated, remove it.
-  // Loop over all the objects in the scene and check which object was
-  // intersected with first by the argument Ray "ray".
-  Vec3 First_Intersection_Point(const Ray &light_ray,
-                                int &object_intersection_index)
-  {
-    // If there is no intersection between light_ray and an object, the index
-    // will stay as -1.
-    object_intersection_index = -1;
-
-    // A Boolean showing whether light_ray has been found to intersect with an
-    // object in the scene. Used for knowing when to update smallest_distance.
-    bool found_an_intersection = false;
-
-    // Store the smallest distance from the light ray source to an intersection
-    // along with the index of the corresponding object in object_pt_vector.
-    double smallest_distance = 0.0;
-
-    // Store the distance of the light ray to the intersection with the current
-    // object being looped over.
-    double current_distance = 0.0;
-
-    // Loop over every object in the scene to find an intersection
-    for (unsigned i = 0; i < object_pt_vector.size(); i++)
-    {
-      // If an intersection has already been found, check whether this new
-      // intersection is closer to the light ray source than the previous
-      // closest intersection.
-      if (found_an_intersection)
-      {
-        // Check whether this intersection is closer than the previous closest
-        // one. If so, replace smallest_distance
-        if (object_pt_vector[i]->Intersection_Check(light_ray,
-                                                    current_distance) &&
-            current_distance < smallest_distance)
-        {
-          smallest_distance = current_distance;
-          object_intersection_index = i;
-        }
-      }
-      // If an intersection hasn't been found yet, any intersection will be the
-      // closest intersection so far.
-      else
-      {
-        if (object_pt_vector[i]->Intersection_Check(light_ray,
-                                                    current_distance))
-        {
-          // This section of code will only be invoked when the first
-          // intersection is found.
-          smallest_distance = current_distance;
-          object_intersection_index = i;
-
-          // An intersection has been found
-          found_an_intersection = true;
-        }
-      }
-    }
-
-    // If there hasn't been an intersection, return the zero vector
-    if (object_intersection_index == -1)
-    {
-      return Vec3(0.0, 0.0, 0.0);
-    }
-
-    // Calculate the position of closest intersection between a light ray and
-    // any object in the scene.
-    Vec3 vector = light_ray.Get_Initial_Position() +
-                  smallest_distance * light_ray.Get_Direction_Vector();
-
-    return vector;
-
-    // I want to find the closest intersection with an SDF here
-    // pseudo-code/explanation
-    double distance_travelled = 0.0;
-
-    // Only work on the SDF if the value of the SDF at the origin of light_ray
-    // is less than the previous intersection found.
-
-    // Find the intersection of a ray with an SDF, find the specific SDF object
-    // it intersects with too
-
-    // Check which is closer, then change the intersection_indexes to the
-    // correct object, change index to -1 for the one which doesn't intersect
-    // first. (Bad explanation but you know what you mean)
-
-    // Return the intersection point
 
   } // End of First_Intersection_Point
 
@@ -1084,145 +978,241 @@ public:
   } // End of Light_Out
 
 
-  // Rupinder: Remove this function once SceneRender works with SDFs too.
-  // Calculate the radiance coming from the direction of light_ray using the
-  // Light Transport Equation considering the light rays take bounces_remaining
-  // number of bounces.
-  Radiance Light_Out(const Ray &light_ray, unsigned bounces_remaining)
+  Image Render_Image(const unsigned &number_of_bounces,
+                     const unsigned &number_of_random_samples,
+                     const double &threshold_intersection_distance,
+                     const double &threshold_no_intersection_distance,
+                     const double &finite_difference_size,
+                     const bool &silent = false)
   {
-    // If the light ray can't bounce off a single object, no light will reach
-    // the "observer".
-    if (bounces_remaining == 0)
+    // Find the resolution of the observer
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct resolution
+    Image image(resolution[0], resolution[1]);
+
+    // Create storage for the radiance at each pixel
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+
+    // Initialise variables used for outputting the current progress to the
+    // terminal
+    unsigned tenth_percentiles = 0;
+    double proportion_done = 0.0;
+
+    // Calculate the radiance of each pixel of the image
+    for (unsigned i = 0; i < resolution[0]; i++)
     {
-      return Radiance(0.0, 0.0, 0.0);
-    }
+      // This section of code is for outputting the progress to the terminal
 
-    Radiance resulting_light(0.0, 0.0, 0.0);
+      // Don't output progress if 'silent' is true
+      if (!silent)
+      {
+        // Find the proportion of pixels calculated
+        proportion_done = double(i + 1) / double(resolution[0]);
 
-    // Initialise the index of the first object in object_pt_vector hit by
-    // light_ray
-    int object_intersection_index = 0;
-
-    // Find the closest intersection of light_ray with an object along with the
-    // index of the object hit in object_pt_vector
-    Vec3 intersection_point =
-      First_Intersection_Point(light_ray, object_intersection_index);
-
-    // If no object was hit according to First_Intersection_Point,
-    // object_intersection_index will be -1 and therefore no light will be seen
-    if (object_intersection_index == -1)
-    {
-      return Radiance(0.0, 0.0, 0.0);
-    }
-
-    // First, find the light emitted by the object in the direction of
-    // light_ray
-    resulting_light =
-      object_pt_vector[object_intersection_index]->Light_Emitted(
-        intersection_point);
-
-    /* Uncomment this and put the above in comments in order to only output the
-       contribution from a certain bounce.
-        if (bounces_remaining == 1)
+        // Every time 10% or more of the pixels have been rendered, print to the
+        // terminal
+        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
         {
-          // First, find the light emitted by the object in the direction of
-          // light_ray
-          resulting_light =
-       object_pt_vector[object_intersection_index]->Light_Emitted(
-            intersection_point);
+          // tenth_percentiles is used to keep track of the last 10th percent
+          // printed
+          tenth_percentiles = unsigned(10.0 * proportion_done);
+
+          // The tenth tenth_percentile is 100% so the image will have been
+          // rendered
+          if (tenth_percentiles == 10)
+          {
+            std::cout << "The image has been rendered." << std::endl;
+          }
+          else
+          {
+            // Update the terminal on the latest 10% done
+            std::cout << "Roughly " << 10 * tenth_percentiles
+                      << "\% of the pixels have been rendered." << std::endl;
+          }
         }
-        */
+      }
 
-    // Find the normal to the surface hit by light_ray at the point of
-    // intersection
-    Vec3 normal =
-      object_pt_vector[object_intersection_index]->Orientated_Normal(
-        intersection_point, -light_ray.Get_Direction_Vector());
+      // Find the radiance at each pixel and set each pixel to this RGB value
+      for (unsigned j = 0; j < resolution[1]; j++)
+      {
+        // Set the radiance at each pixel to zero before calculating the
+        // radiance
+        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
 
-    // Find the direction of a random incident ray onto an object, along with
-    // its point of origin
-    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
-    Vec3 new_position = intersection_point + 1.0e-8 * normal;
-    Ray new_ray(new_position, new_direction);
+        // Sum up the radiance of multiple light rays "shot out" from the camera
+        // in the direction of this pixel
+        for (unsigned k = 0; k < number_of_random_samples; k++)
+        {
+          pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
+                                      number_of_bounces,
+                                      threshold_intersection_distance,
+                                      threshold_no_intersection_distance,
+                                      finite_difference_size);
+        }
 
-    // Find the BRDF of the first object hit by light_ray
-    Vec3 brdf = object_pt_vector[object_intersection_index]->BRDF(
-      intersection_point,
-      light_ray.Get_Direction_Vector(),
-      new_ray.Get_Direction_Vector());
+        // Set the RGB value of this pixel to the average radiance over the
+        // number of light rays shot out
+        image(i, j) = pixel_radiance / number_of_random_samples;
+      }
+    }
 
-    // Add the radiance from all the objects the light ray hits as it bounces a
-    // fixed amount of times
-    resulting_light += 2.0 * pi * brdf * dot(new_direction, normal) *
-                       Light_Out(new_ray, bounces_remaining - 1);
+    return image;
+  }
 
-
-    return resulting_light;
-  } // End of Light_Out
-
-
-  // Calculate the radiance coming from the direction of light_ray using the
-  // Light Transport Equation with Russian Roulette implemented
-  Radiance Light_Out_Russian(const Ray &light_ray)
+  // This function should be used purely in Render_Image_Multithreaded, when a
+  // thread is created to do this job, it will find the Radiance of pixels in
+  // such a way that it will work in parallel with other threads. The pixel
+  // data calculated by all the threads are used in Render_Image_Multithreaded
+  // to create the whole picture.
+  void Render_Image_Per_Thread(std::vector<Radiance> &partition,
+                               const unsigned &number_of_bounces,
+                               const unsigned &number_of_random_samples,
+                               const double &threshold_intersection_distance,
+                               const double &threshold_no_intersection_distance,
+                               const double &finite_difference_size,
+                               const unsigned &thread_index,
+                               const unsigned &number_of_threads)
   {
-    // Initialise the index of the first object in object_pt_vector hit by
-    // light_ray
-    int object_intersection_index = 0;
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
-    // Find the closest intersection of light_ray with an object along with the
-    // index of the object hit in object_pt_vector
-    Vec3 intersection_point =
-      First_Intersection_Point(light_ray, object_intersection_index);
+    // Find the number of pixels there are
+    unsigned number_of_pixels = resolution[0] * resolution[1];
 
-    // If no object was hit according to First_Intersection_Point,
-    // object_intersection_index will be -1 and therefore no light will be seen
-    if (object_intersection_index == -1)
+    // Make sure that the vector of Radiance is empty
+    partition.resize(0);
+
+    // Reserve the minimum amount of memory that each vector will need to
+    // reduce the cost of push_back
+    partition.reserve(number_of_pixels / number_of_threads);
+
+    // If the rows of pixels from top to bottom in an image were laid end to
+    // end, pixel_index is the index of a pixel in this "vector" of pixels.
+    unsigned pixel_index = thread_index;
+
+    // Initialise variables
+    Radiance pixel_radiance(0.0, 0.0, 0.0);
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    while (pixel_index < number_of_pixels)
     {
-      return Radiance(0.0, 0.0, 0.0);
+      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
+      // image, this is calculated from pixel_index and the resolution
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the radiance to zero for each pixel before calculating the radiance
+      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+
+      // Take the total radiance for a pixel over number_of_random_samples
+      // light rays
+      for (unsigned i = 0; i < number_of_random_samples; i++)
+      {
+        pixel_radiance +=
+          Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+                    number_of_bounces,
+                    threshold_intersection_distance,
+                    threshold_no_intersection_distance,
+                    finite_difference_size);
+      }
+
+      // Set the RGB value of this pixel to the average radiance over all the
+      // rays traced
+      partition.push_back(pixel_radiance / number_of_random_samples);
+
+      // Move on to the pixel that is number_of_threads further so that each
+      // thread works on a different pixel
+      pixel_index += number_of_threads;
+    }
+  }
+
+
+  // MULTITHREADING DOES NOT WORK CORRECTLY RIGHT NOW: TO BE FIXED
+  // Rupinder: Fix this
+  // This function can take in the number of threads to be utilised while
+  // rendering the image. This relies on the function of
+  // Render_Image_Per_Thread.
+  Image Render_Image_Multithreaded(
+    const unsigned &number_of_bounces,
+    const unsigned &number_of_random_samples,
+    const double &threshold_intersection_distance,
+    const double &threshold_no_intersection_distance,
+    const double &finite_difference_size,
+    const unsigned &number_of_threads = std::thread::hardware_concurrency())
+  {
+    // Create a vector of threads
+    std::vector<std::thread> threads;
+
+    // Get the resolution of the image
+    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
+
+    // Create an image of the correct size
+    Image image(resolution[0], resolution[1]);
+
+    // Create the vectors of Radiance that each thread will work on
+    std::vector<std::vector<Radiance>> partitions(number_of_threads);
+
+    for (unsigned thread_index = 0; thread_index < number_of_threads;
+         thread_index++)
+    {
+      // Create number_of_threads threads to render the pixels of the image
+      threads.push_back(
+        std::thread(&SceneRender::Render_Image_Per_Thread,
+                    this,
+                    std::ref(partitions[thread_index]),
+                    std::ref(number_of_bounces),
+                    std::ref(number_of_random_samples),
+                    std::ref(threshold_intersection_distance),
+                    std::ref(threshold_no_intersection_distance),
+                    std::ref(finite_difference_size),
+                    std::ref(thread_index),
+                    std::ref(number_of_threads)));
     }
 
-    // First, find the light emitted by the object in the direction of light_ray
-    Radiance resulting_light =
-      object_pt_vector[object_intersection_index]->Light_Emitted(
-        intersection_point);
-
-    // Find the normal to the surface hit by light_ray at the point of
-    // intersection
-    Vec3 normal =
-      object_pt_vector[object_intersection_index]->Orientated_Normal(
-        intersection_point, -light_ray.Get_Direction_Vector());
-
-    // Find the direction of a random incident ray onto an object, along with
-    // its point of origin
-    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
-    Vec3 new_position = intersection_point + 1.0e-8 * normal;
-    Ray new_ray(new_position, new_direction);
-
-    // Choose the termination chance of a bounce based on the reflected
-    // direction
-    double reflected_angle = dot(new_direction, normal);
-
-    // Create a uniform distribution between 0 and 1.
-    std::random_device random_seed;
-    std::default_random_engine generator(random_seed());
-    std::uniform_real_distribution<double> distribution(0.0, 1.0);
-
-    // Find the BRDF of the first object hit by light_ray
-    Vec3 brdf = object_pt_vector[object_intersection_index]->BRDF(
-      intersection_point,
-      light_ray.Get_Direction_Vector(),
-      new_ray.Get_Direction_Vector());
-
-    // Enforce a termination probability on the ray.
-    if (distribution(generator) < reflected_angle)
+    // If a thread is joinable, join it
+    for (std::thread &t : threads)
     {
-      // Add the radiance from all the objects the light ray hits as it bounces
-      // a fixed amount of times
-      resulting_light += 2.0 * pi * brdf * Light_Out_Russian(new_ray);
+      if (t.joinable())
+      {
+        t.join();
+      }
     }
 
-    return resulting_light;
-  } // End of Light_Out_Russian
+    // Initialise variables
+    unsigned pixel_index = 0;
+    unsigned pixel_index_i = 0;
+    unsigned pixel_index_j = 0;
+
+    // Loop over every pixel in image and find the correct value of Radiance
+    // in partitions to assign to this pixel.
+    while (pixel_index < resolution[0] * resolution[1])
+    {
+      // If the rows of pixels from top to bottom of an image were laid end
+      // to end, and the index of a pixel in this "vector" of pixels were given
+      // as pixel_index, find the (i, j)-th index of this pixel in the image.
+      pixel_index_i = pixel_index % resolution[0];
+      pixel_index_j = pixel_index / resolution[0];
+
+      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
+      // the correct Radiance value
+      image(pixel_index_i, pixel_index_j) =
+        partitions[pixel_index % number_of_threads]
+                  [pixel_index / number_of_threads];
+
+      // Move on to the next pixel
+      pixel_index += 1;
+    }
+
+    return image;
+  }
+
+
+  //////////////////////////////////////////////////////////////////////////////
+  ///////////////// Equivalent code for Russian Roulette ahead /////////////////
+  //////////////////////////////////////////////////////////////////////////////
+
 
   // Calculate the radiance coming from the direction of light_ray using the
   // Light Transport Equation with Russian Roulette implemented
@@ -1345,505 +1335,12 @@ public:
   } // End of Light_Out_Russian
 
 
-  // This function should be used purely in Render_Image_Multithreaded, when a
-  // thread is created to do this job, it will find the Radiance of pixels in
-  // such a way that it will work in parallel with other threads. The pixel
-  // data calculated by all the threads are used in Render_Image_Multithreaded
-  // to create the whole picture.
-  void Render_Image_Per_Thread(std::vector<Radiance> &partition,
-                               const unsigned number_of_bounces,
-                               const unsigned number_of_random_samples,
-                               const unsigned thread_index,
-                               const unsigned number_of_threads)
-  {
-    // Get the resolution of the image
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Find the number of pixels there are
-    unsigned number_of_pixels = resolution[0] * resolution[1];
-
-    // Make sure that the vector of Radiance is empty
-    partition.resize(0);
-
-    // Reserve the minimum amount of memory that each vector will need to
-    // reduce the cost of push_back
-    partition.reserve(number_of_pixels / number_of_threads);
-
-    // If the rows of pixels from top to bottom in an image were laid end to
-    // end, pixel_index is the index of a pixel in this "vector" of pixels.
-    unsigned pixel_index = thread_index;
-
-    // Initialise variables
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-    unsigned pixel_index_i = 0;
-    unsigned pixel_index_j = 0;
-
-    while (pixel_index < number_of_pixels)
-    {
-      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
-      // image, this is calculated from pixel_index and the resolution
-      pixel_index_i = pixel_index % resolution[0];
-      pixel_index_j = pixel_index / resolution[0];
-
-      // Set the radiance to zero for each pixel before calculating the radiance
-      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-
-      // Take the total radiance for a pixel over number_of_random_samples
-      // light rays
-      for (unsigned i = 0; i < number_of_random_samples; i++)
-      {
-        pixel_radiance +=
-          Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-                    number_of_bounces);
-      }
-
-      // Set the RGB value of this pixel to the average radiance over all the
-      // rays traced
-      partition.push_back(pixel_radiance / number_of_random_samples);
-
-      // Move on to the pixel that is number_of_threads further so that each
-      // thread works on a different pixel
-      pixel_index += number_of_threads;
-    }
-  }
-
-
-  // This function should be used purely in Render_Image_Multithreaded_Russian,
-  // when a thread is created to do this job, it will find the Radiance of
-  // pixels in such a way that it will work in parallel with other threads. The
-  // pixel data calculated by all the threads are used in
-  // Render_Image_Multithreaded_Russian to create the whole picture.
-  void Render_Image_Per_Thread_Russian(std::vector<Radiance> &partition,
-                                       const unsigned number_of_random_samples,
-                                       const unsigned thread_index,
-                                       const unsigned number_of_threads)
-  {
-    // Get the resolution of the image
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Find the number of pixels there are
-    unsigned number_of_pixels = resolution[0] * resolution[1];
-
-    // Make sure that the vector of Radiance is empty
-    partition.resize(0);
-
-    // Reserve the minimum amount of memory that each vector will need to
-    // reduce the cost of push_back
-    partition.reserve(number_of_pixels / number_of_threads);
-
-    // If the rows of pixels from top to bottom in an image were laid end to
-    // end, pixel_index is the index of a pixel in this "vector" of pixels.
-    unsigned pixel_index = thread_index;
-
-    // Initialise variables
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-    unsigned pixel_index_i = 0;
-    unsigned pixel_index_j = 0;
-
-    while (pixel_index < number_of_pixels)
-    {
-      // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
-      // image, this is calculated from pixel_index and the resolution
-      pixel_index_i = pixel_index % resolution[0];
-      pixel_index_j = pixel_index / resolution[0];
-
-      // Set the radiance to zero for each pixel before calculating the radiance
-      pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-
-      // Take the total radiance for a pixel over number_of_random_samples
-      // light rays
-      for (unsigned i = 0; i < number_of_random_samples; i++)
-      {
-        pixel_radiance += Light_Out_Russian(
-          observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j));
-      }
-
-      // Set the RGB value of this pixel to the average radiance over all the
-      // rays traced
-      partition.push_back(pixel_radiance / number_of_random_samples);
-
-      // Move on to the pixel that is number_of_threads further so that each
-      // thread works on a different pixel
-      pixel_index += number_of_threads;
-    }
-  }
-
-
-  // This function can take in the number of threads to be utilised while
-  // rendering the image. This relies on the function of
-  // Render_Image_Per_Thread.
-  Image Render_Image_Multithreaded(
-    const unsigned &number_of_bounces,
-    const unsigned &number_of_random_samples,
-    const unsigned &number_of_threads = std::thread::hardware_concurrency())
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-
-    // Check if the number of threads given as an argument is less than or
-    // equal to the number of threads available. If not, reduce
-    // number_of_threads to the maximum possible value.
-    if (number_of_threads > std::thread::hardware_concurrency())
-    {
-      throw std::invalid_argument(
-        "You don't have the number of threads specified in "
-        "Render_Image_Multithreaded available.");
-    }
-#endif
-
-    // Create a vector of threads
-    std::vector<std::thread> threads;
-
-    // Get the resolution of the image
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct size
-    Image image(resolution[0], resolution[1]);
-
-    // Create the vectors of Radiance that each thread will work on
-    std::vector<std::vector<Radiance>> partitions(number_of_threads);
-
-    for (unsigned thread_index = 0; thread_index < number_of_threads;
-         thread_index++)
-    {
-      // Create number_of_threads threads to render the pixels of the image
-      threads.push_back(std::thread(&SceneRender::Render_Image_Per_Thread,
-                                    this,
-                                    std::ref(partitions[thread_index]),
-                                    number_of_bounces,
-                                    number_of_random_samples,
-                                    thread_index,
-                                    number_of_threads));
-    }
-
-    // If a thread is joinable, join it
-    for (std::thread &t : threads)
-    {
-      if (t.joinable())
-      {
-        t.join();
-      }
-    }
-
-    // Initialise variables
-    unsigned pixel_index = 0;
-    unsigned pixel_index_i = 0;
-    unsigned pixel_index_j = 0;
-
-    // Loop over every pixel in image and find the correct value of Radiance
-    // in partitions to assign to this pixel.
-    while (pixel_index < resolution[0] * resolution[1])
-    {
-      // If the rows of pixels from top to bottom of an image were laid end
-      // to end, and the index of a pixel in this "vector" of pixels were given
-      // as pixel_index, find the (i, j)-th index of this pixel in the image.
-      pixel_index_i = pixel_index % resolution[0];
-      pixel_index_j = pixel_index / resolution[0];
-
-      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
-      // the correct Radiance value
-      image(pixel_index_i, pixel_index_j) =
-        partitions[pixel_index % number_of_threads]
-                  [pixel_index / number_of_threads];
-
-      // Move on to the next pixel
-      pixel_index += 1;
-    }
-
-    return image;
-  }
-
-
-  // This function can take in the number of threads to be utilised while
-  // rendering the image. This relies on the function of
-  // Render_Image_Per_Thread_Russian.
-  Image Render_Image_Multithreaded_Russian(
-    const unsigned &number_of_random_samples,
-    const unsigned &number_of_threads = std::thread::hardware_concurrency())
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-
-    // Check if the number of threads given as an argument is less than or
-    // equal to the number of threads available. If not, reduce
-    // number_of_threads to the maximum possible value.
-    if (number_of_threads > std::thread::hardware_concurrency())
-    {
-      throw std::invalid_argument(
-        "You don't have the number of threads specified in "
-        "Render_Image_Multithreaded available.");
-    }
-#endif
-
-    // Create a vector of threads
-    std::vector<std::thread> threads;
-
-    // Get the resolution of the image
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct size
-    Image image(resolution[0], resolution[1]);
-
-    // Create the vectors of Radiance that each thread will work on
-    std::vector<std::vector<Radiance>> partitions(number_of_threads);
-
-    for (unsigned thread_index = 0; thread_index < number_of_threads;
-         thread_index++)
-    {
-      // Create number_of_threads threads to render the pixels of the image
-      threads.push_back(
-        std::thread(&SceneRender::Render_Image_Per_Thread_Russian,
-                    this,
-                    std::ref(partitions[thread_index]),
-                    number_of_random_samples,
-                    thread_index,
-                    number_of_threads));
-    }
-
-    // If a thread is joinable, join it
-    for (std::thread &t : threads)
-    {
-      if (t.joinable())
-      {
-        t.join();
-      }
-    }
-
-    // Initialise variables
-    unsigned pixel_index = 0;
-    unsigned pixel_index_i = 0;
-    unsigned pixel_index_j = 0;
-
-    // Loop over every pixel in image and find the correct value of Radiance
-    // in partitions to assign to this pixel.
-    while (pixel_index < resolution[0] * resolution[1])
-    {
-      // If the rows of pixels from top to bottom of an image were laid end
-      // to end, and the index of a pixel in this "vector" of pixels were given
-      // as pixel_index, find the (i, j)-th index of this pixel in the image.
-      pixel_index_i = pixel_index % resolution[0];
-      pixel_index_j = pixel_index / resolution[0];
-
-      // Set the pixel with an index of (pixel_index_i, pixel_index_j) to
-      // the correct Radiance value
-      image(pixel_index_i, pixel_index_j) =
-        partitions[pixel_index % number_of_threads]
-                  [pixel_index / number_of_threads];
-
-      // Move on to the next pixel
-      pixel_index += 1;
-    }
-
-    return image;
-  }
-
-
-  Image Render_Image(const unsigned &number_of_bounces,
-                     const unsigned &number_of_random_samples,
-                     const double &threshold_intersection_distance,
-                     const double &threshold_no_intersection_distance,
-                     const double &finite_difference_size,
-                     const bool &silent = false)
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-#endif
-    // Find the resolution of the observer
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct resolution
-    Image image(resolution[0], resolution[1]);
-
-    // Create storage for the radiance at each pixel
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-
-    // Initialise variables used for outputting the current progress to the
-    // terminal
-    unsigned tenth_percentiles = 0;
-    double proportion_done = 0.0;
-
-    // Calculate the radiance of each pixel of the image
-    for (unsigned i = 0; i < resolution[0]; i++)
-    {
-      // This section of code is for outputting the progress to the terminal
-
-      // Don't output progress if 'silent' is true
-      if (!silent)
-      {
-        // Find the proportion of pixels calculated
-        proportion_done = double(i + 1) / double(resolution[0]);
-
-        // Every time 10% or more of the pixels have been rendered, print to the
-        // terminal
-        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
-        {
-          // tenth_percentiles is used to keep track of the last 10th percent
-          // printed
-          tenth_percentiles = unsigned(10.0 * proportion_done);
-
-          // The tenth tenth_percentile is 100% so the image will have been
-          // rendered
-          if (tenth_percentiles == 10)
-          {
-            std::cout << "The image has been rendered." << std::endl;
-          }
-          else
-          {
-            // Update the terminal on the latest 10% done
-            std::cout << "Roughly " << 10 * tenth_percentiles
-                      << "\% of the pixels have been rendered." << std::endl;
-          }
-        }
-      }
-
-      // Find the radiance at each pixel and set each pixel to this RGB value
-      for (unsigned j = 0; j < resolution[1]; j++)
-      {
-        // Set the radiance at each pixel to zero before calculating the
-        // radiance
-        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-
-        // Sum up the radiance of multiple light rays "shot out" from the camera
-        // in the direction of this pixel
-        for (unsigned k = 0; k < number_of_random_samples; k++)
-        {
-          pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
-                                      number_of_bounces,
-                                      threshold_intersection_distance,
-                                      threshold_no_intersection_distance,
-                                      finite_difference_size);
-        }
-
-        // Set the RGB value of this pixel to the average radiance over the
-        // number of light rays shot out
-        image(i, j) = pixel_radiance / number_of_random_samples;
-      }
-    }
-
-    return image;
-  }
-
-  // Rupinder: Remove this function once RenderImage fully works with SDFs too
-  // Render the image and return it
-  Image Render_Image(const unsigned &number_of_bounces,
-                     const unsigned &number_of_random_samples,
-                     const bool &silent = false)
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-#endif
-    // Find the resolution of the observer
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct resolution
-    Image image(resolution[0], resolution[1]);
-
-    // Create storage for the radiance at each pixel
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-
-    // Initialise variables used for outputting the current progress to the
-    // terminal
-    unsigned tenth_percentiles = 0;
-    double proportion_done = 0.0;
-
-    // Calculate the radiance of each pixel of the image
-    for (unsigned i = 0; i < resolution[0]; i++)
-    {
-      // This section of code is for outputting the progress to the terminal
-
-      // Don't output progress if 'silent' is true
-      if (!silent)
-      {
-        // Find the proportion of pixels calculated
-        proportion_done = double(i + 1) / double(resolution[0]);
-
-        // Every time 10% or more of the pixels have been rendered, print to the
-        // terminal
-        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
-        {
-          // tenth_percentiles is used to keep track of the last 10th percent
-          // printed
-          tenth_percentiles = unsigned(10.0 * proportion_done);
-
-          // The tenth tenth_percentile is 100% so the image will have been
-          // rendered
-          if (tenth_percentiles == 10)
-          {
-            std::cout << "The image has been rendered." << std::endl;
-          }
-          else
-          {
-            // Update the terminal on the latest 10% done
-            std::cout << "Roughly " << 10 * tenth_percentiles
-                      << "\% of the pixels have been rendered." << std::endl;
-          }
-        }
-      }
-
-      // Find the radiance at each pixel and set each pixel to this RGB value
-      for (unsigned j = 0; j < resolution[1]; j++)
-      {
-        // Set the radiance at each pixel to zero before calculating the
-        // radiance
-        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-
-        // Sum up the radiance of multiple light rays "shot out" from the camera
-        // in the direction of this pixel
-        for (unsigned k = 0; k < number_of_random_samples; k++)
-        {
-          pixel_radiance +=
-            Light_Out(observer_pt->Ray_To_Pixel_XY(i, j), number_of_bounces);
-        }
-
-        // Set the RGB value of this pixel to the average radiance over the
-        // number of light rays shot out
-        image(i, j) = pixel_radiance / number_of_random_samples;
-      }
-    }
-
-    return image;
-  }
-
   Image Render_Image_Russian(const unsigned &number_of_random_samples,
                              const double &threshold_intersection_distance,
                              const double &threshold_no_intersection_distance,
                              const double &finite_difference_size,
                              const bool &silent = false)
   {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-#endif
-
     // Find the resolution of the observer
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
@@ -1921,469 +1418,19 @@ public:
     return image;
   }
 
-  // Rupinder: Remove this function once RenderImage works with SDFs.
-  // This function should be used purely in Render_Image_Multithreaded_Russian,
+  // This function should be used purely in Render_Image_Russian_Multithreaded,
   // when a thread is created to do this job, it will find the Radiance of
   // pixels in such a way that it will work in parallel with other threads. The
   // pixel data calculated by all the threads are used in
-  // Render_Image_Multithreaded_Russian to create the whole picture.
-  Image Render_Image_Russian(const unsigned number_of_random_samples)
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-#endif
-    // Get the resolution of the image
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct resolution
-    Image image(resolution[0], resolution[1]);
-
-    // Create storage for the radiance at each pixel
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-
-    for (unsigned i = 0; i < resolution[0]; i++)
-    {
-      for (unsigned j = 0; j < resolution[1]; j++)
-      {
-        pixel_radiance.x = 0.0;
-        pixel_radiance.y = 0.0;
-        pixel_radiance.z = 0.0;
-
-        for (unsigned k = 0; k < number_of_random_samples; k++)
-        {
-          pixel_radiance +=
-            Light_Out_Russian(observer_pt->Ray_To_Pixel_XY(i, j));
-        }
-
-        image(i, j) = pixel_radiance / number_of_random_samples;
-      }
-    }
-
-    return image;
-  }
-
-private:
-  // A vector containing pointers to the physical objects in the scene
-  std::vector<std::unique_ptr<PhysicalObject>> object_pt_vector;
-
-  // A vector containing pointers to the physical objects described by SDFs in
-  // the scene
-  std::vector<std::unique_ptr<SDF>> sdf_object_pt_vector;
-
-  // A pointer to the Observer of the scene
-  std::unique_ptr<Observer> observer_pt;
-
-  // Random engine and distribution for use in generating random vectors
-  std::default_random_engine generator;
-  std::uniform_real_distribution<double> distribution;
-};
-
-
-////////////////////////////////////////////////////////////////////////////////
-//////////////////////////// End of SceneRender ////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////// Start of SceneRenderSDF /////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-class SceneRenderSDF
-{
-public:
-  SceneRenderSDF(Observer &observer_)
-  {
-    // Only an observer is required in the construction of a scene
-    observer_pt = std::make_unique<Observer>(observer_);
-
-    // Get a seed with a random value
-    std::random_device random_seed;
-
-    // Create a uniform distribution between -1 and 1
-    generator = std::default_random_engine(random_seed());
-    distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
-  }
-
-  // Obtain the normal to the isosurface which the point 'position' rests on,
-  // given the SDF, the normal chosen out of the choice of the two which are
-  // negatives of each other is the one which is closer to 'direction'. That is,
-  // their dot product is positive. The normal is obtained numerically via the
-  // central finite difference method which takes a step size of
-  // 'finite_difference_size'.
-  Vec3 Orientated_Normal(const Vec3 &position,
-                         const Vec3 &direction,
-                         const double &finite_difference_size)
-  {
-    // The central finite difference of the SDF is taken in all three coordinate
-    // directions in order to get the gradient of the SDF. This gradient is a
-    // normal to any isosurface at 'position'. This gradient is then normalised
-    // to get the unit normal, then the dot product is taken with 'direction'.
-    // If the dot product is negative, we flip the signs of the normal and take
-    // that as the normal.
-
-    // Initialise storage
-    Vec3 normal(0.0, 0.0, 0.0);
-
-    // Find the non-unit normal, division by step size is unnecessary since the
-    // normal will be normalised
-    normal.x =
-      SDF(Vec3(position.x + finite_difference_size, position.y, position.z)) -
-      SDF(Vec3(position.x - finite_difference_size, position.y, position.z));
-    normal.y =
-      SDF(Vec3(position.x, position.y + finite_difference_size, position.z)) -
-      SDF(Vec3(position.x, position.y - finite_difference_size, position.z));
-    normal.z =
-      SDF(Vec3(position.x, position.y, position.z + finite_difference_size)) -
-      SDF(Vec3(position.x, position.y, position.z - finite_difference_size));
-
-    // Find the unit normal
-    normal.normalise();
-
-    // Find the normal that is closest in direction to 'direction'
-    if (dot(normal, direction) < 0.0)
-    {
-      normal = -normal;
-    }
-
-    return normal;
-  }
-
-  // This function returns the components of the light emitted from this
-  // object's surface given a position on the surface and the direction of the
-  // light.
-  Radiance Light_Emitted(const Vec3 &position)
-  {
-    if (Light_Emitted_Fct_Pt == 0)
-    {
-      // If the pointer to the light emitted is a null pointer, return the zero
-      // vector
-      Radiance zero_vector(0.0, 0.0, 0.0);
-      return zero_vector;
-    }
-    else
-    {
-      // If Light_Emitted_Fct_Pt points to a function, evaluate this function
-      return (*Light_Emitted_Fct_Pt)(position);
-    }
-  } // End of Light_Emitted
-
-  // This function returns the Bidirection Reflectance Distribution Function
-  // given a position, incident light vector and outgoing light vector.
-  Radiance BRDF(const Vec3 &position,
-                const Vec3 &incident_light_vector,
-                const Vec3 &outgoing_light_vector)
-  {
-    if (BRDF_Fct_Pt == 0)
-    {
-      // If the pointer to the BRDF is a null pointer, return the zero vector
-      Radiance zero_vector(0.0, 0.0, 0.0);
-      return zero_vector;
-    }
-    else
-    {
-      // If BRDF_Fct_Pt points to a function, evaluate this function
-      return (*BRDF_Fct_Pt)(
-        position, incident_light_vector, outgoing_light_vector);
-    }
-  } // End of BRDF
-
-  // SDF returns the value of the SDF at the current position.
-  double SDF(const Vec3 &position)
-  {
-    if (SDF_Fct_Pt == 0)
-    {
-      // If the pointer to the SDF is null, return a zero value
-      return 0.0;
-    }
-    else
-    {
-      // Return the value of the SDF as given by the function pointed to by
-      // SDF_Fct_Pt at 'position'
-      return (*SDF_Fct_Pt)(position);
-    }
-  }
-
-  // Random hemisphere vector generator
-  Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
-  {
-    // The random vector is instantiated first
-    Vec3 random_vector;
-
-    // Keep looping over this algorithm until a suitable vector is found
-    while (true)
-    {
-      // The purpose of this algorithm is to generate a normal distribution of
-      // points on a unit hemisphere. The hemisphere we have is such that a
-      // vector from the centre to a point on the hemisphere has a positive dot
-      // product with the argument "normal".
-      // The idea of this algorithm is to generate a point from a uniform
-      // distribution inside a 2x2x2 cube, if it is outside the unit sphere
-      // (diameter 2), discard the point, otherwise map it to the hemisphere by
-      // multiplying the position vector of the point with the appropriate
-      // value.
-
-      // Set the components of random_vector to random values inside (-1,1)
-      random_vector.x = distribution(generator);
-      random_vector.y = distribution(generator);
-      random_vector.z = distribution(generator);
-
-      // Find the squared norm
-      double modulus = random_vector.norm2();
-
-      // Check the random vector is inside the unit sphere but isn't the zero
-      // vector
-      if (modulus <= 1.0 && modulus > 0.0)
-      {
-        // Normalise the random vector
-        random_vector.normalise();
-
-        // Make sure that the random vector is in the hemisphere defined by the
-        // direction of the normal
-        if (dot(random_vector, normal) < 0.0)
-        {
-          random_vector = -random_vector;
-        }
-        break;
-      }
-    }
-
-    // Return the random vector
-    return random_vector;
-  } // End of Hemisphere_Vector_Generator
-
-  // Advance a ray in the scene until it gets within a threshold distance of an
-  // object, at this point, an intersection is assumed to happen. If
-  // 'intersected' is true, an intersection has happened, otherwise, the light
-  // ray being advanced is assumed to not intersect with an object in the scene.
-  Vec3 First_Intersection_Point(
-    const Ray &light_ray,
+  // Render_Image_Russian_Multithreaded to create the whole picture.
+  void Render_Image_Russian_Per_Thread(
+    std::vector<Radiance> &partition,
+    const unsigned &number_of_random_samples,
     const double &threshold_intersection_distance,
     const double &threshold_no_intersection_distance,
-    bool &intersected)
-  {
-    // Storage for variables
-    Vec3 intersection_point(0.0, 0.0, 0.0);
-    double distance_travelled = 0.0;
-    double safe_travel_distance =
-      std::abs(SDF(light_ray.Get_Initial_Position()));
-    double new_safe_travel_distance =
-      std::abs(SDF(light_ray.Get_Initial_Position()));
-
-    // Advance a light ray while it hasn't intersected a surface and isn't too
-    // far away from any objects
-    while (safe_travel_distance >= threshold_intersection_distance &&
-           safe_travel_distance <= threshold_no_intersection_distance)
-    {
-      // The value of the SDF at any position is the distance that can be safely
-      // travelled from that position without passing through a surface. At each
-      // iteration, the light ray is advanced by that safe travel distance. The
-      // total distance travelled is tallied in distance_travelled.
-      new_safe_travel_distance =
-        std::abs(SDF(light_ray.Get_Initial_Position() +
-                     (distance_travelled + safe_travel_distance) *
-                       light_ray.Get_Direction_Vector()));
-
-      // Tally the distance travelled
-      distance_travelled += safe_travel_distance;
-
-      // Define the new safe distance to travel
-      safe_travel_distance = new_safe_travel_distance;
-    }
-
-    // If the light ray gets too far away from any object in the scene, it is
-    // assumed that there is no intersection so set 'intersected' to false and
-    // return from the function.
-    if (safe_travel_distance > threshold_no_intersection_distance)
-    {
-      intersected = false;
-      return intersection_point;
-    }
-
-    // If the light has intersected with an object, set 'intersected' to true
-    // and find the point of intersection then return this point.
-    intersected = true;
-    intersection_point = light_ray.Get_Initial_Position() +
-                         distance_travelled * light_ray.Get_Direction_Vector();
-
-    return intersection_point;
-  }
-
-  // Calculate the radiance coming from the direction of light_ray using the
-  // Light Transport Equation considering the light rays take bounces_remaining
-  // number of bounces.
-  Radiance Light_Out(const Ray &light_ray,
-                     unsigned bounces_remaining,
-                     const double &threshold_intersection_distance,
-                     const double &threshold_no_intersection_distance,
-                     const double &finite_difference_size)
-  {
-    // If the light ray can't bounce off a single object, no light will reach
-    // the "observer".
-    if (bounces_remaining == 0)
-    {
-      return Radiance(0.0, 0.0, 0.0);
-    }
-
-    // Initialise a boolean that will contain the result of whether an object
-    // has been hit or not.
-    bool object_hit = false;
-
-    // Find the closest intersection of light_ray with an object along with the
-    // index of the object hit in object_pt_vector
-    Vec3 intersection_point =
-      First_Intersection_Point(light_ray,
-                               threshold_intersection_distance,
-                               threshold_no_intersection_distance,
-                               object_hit);
-
-    // If no object was hit according to First_Intersection_Point,
-    // object_intersection_index will be -1 and therefore no light will be seen
-    if (!object_hit)
-    {
-      return Radiance(0.0, 0.0, 0.0);
-    }
-
-    // First, find the light emitted by the object in the direction of light_ray
-    Radiance resulting_light = Light_Emitted(intersection_point);
-
-    // Find the normal to the surface hit by light_ray at the point of
-    // intersection
-    Vec3 normal = Orientated_Normal(intersection_point,
-                                    -light_ray.Get_Direction_Vector(),
-                                    finite_difference_size);
-
-    // Find the direction of a random incident ray onto an object, along with
-    // its point of origin
-    Vec3 new_direction = Hemisphere_Vector_Generator(normal);
-    Vec3 new_position = intersection_point + 1.0e-8 * normal;
-    Ray new_ray(new_position, new_direction);
-
-    // Find the BRDF of the first object hit by light_ray
-    Vec3 brdf = BRDF(intersection_point,
-                     light_ray.Get_Direction_Vector(),
-                     new_ray.Get_Direction_Vector());
-
-    // Add the radiance from all the objects the light ray hits as it bounces a
-    // fixed amount of times
-    resulting_light += 2.0 * pi * brdf * dot(new_direction, normal) *
-                       Light_Out(new_ray,
-                                 bounces_remaining - 1,
-                                 threshold_intersection_distance,
-                                 threshold_no_intersection_distance,
-                                 finite_difference_size);
-
-
-    return resulting_light;
-  } // End of Light_Out
-
-  // Render the image and export it to filename.
-  Image Render_Image(const unsigned &number_of_bounces,
-                     const unsigned &number_of_random_samples,
-                     const double &threshold_intersection_distance,
-                     const double &threshold_no_intersection_distance,
-                     const double &finite_difference_size,
-                     const bool &silent = false)
-  {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-#endif
-    // Find the resolution of the observer
-    std::vector<unsigned> resolution = observer_pt->Get_Resolution();
-
-    // Create an image of the correct resolution
-    Image image(resolution[0], resolution[1]);
-
-    // Create storage for the radiance at each pixel
-    Radiance pixel_radiance(0.0, 0.0, 0.0);
-
-    // Initialise variables used for outputting the current progress to the
-    // terminal
-    unsigned tenth_percentiles = 0;
-    double proportion_done = 0.0;
-
-    // Calculate the radiance of each pixel of the image
-    for (unsigned i = 0; i < resolution[0]; i++)
-    {
-      // This section of code is for outputting the progress to the terminal
-
-      // Don't output progress if 'silent' is true
-      if (!silent)
-      {
-        // Find the proportion of pixels calculated
-        proportion_done = double(i + 1) / double(resolution[0]);
-
-        // Every time 10% or more of the pixels have been rendered, print to the
-        // terminal
-        if (unsigned(10.0 * proportion_done) > tenth_percentiles)
-        {
-          // tenth_percentiles is used to keep track of the last 10th percent
-          // printed
-          tenth_percentiles = unsigned(10.0 * proportion_done);
-
-          // The tenth tenth_percentile is 100% so the image will have been
-          // rendered
-          if (tenth_percentiles == 10)
-          {
-            std::cout << "The image has been rendered." << std::endl;
-          }
-          else
-          {
-            // Update the terminal on the latest 10% done
-            std::cout << "Roughly " << 10 * tenth_percentiles
-                      << "\% of the pixels have been rendered." << std::endl;
-          }
-        }
-      }
-
-      // Find the radiance at each pixel and set each pixel to this RGB value
-      for (unsigned j = 0; j < resolution[1]; j++)
-      {
-        // Set the radiance at each pixel to zero before calculating the
-        // radiance
-        pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-
-        // Sum up the radiance of multiple light rays "shot out" from the camera
-        // in the direction of this pixel
-        for (unsigned k = 0; k < number_of_random_samples; k++)
-        {
-          pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
-                                      number_of_bounces,
-                                      threshold_intersection_distance,
-                                      threshold_no_intersection_distance,
-                                      finite_difference_size);
-        }
-
-        // Set the RGB value of this pixel to the average radiance over the
-        // number of light rays shot out
-        image(i, j) = pixel_radiance / number_of_random_samples;
-      }
-    }
-
-    return image;
-  }
-
-  // This function should be used purely in Render_Image_Multithreaded, when a
-  // thread is created to do this job, it will find the Radiance of pixels in
-  // such a way that it will work in parallel with other threads. The pixel
-  // data calculated by all the threads are used in Render_Image_Multithreaded
-  // to create the whole picture.
-  void Render_Image_Per_Thread(std::vector<Radiance> &partition,
-                               const unsigned number_of_bounces,
-                               const unsigned number_of_random_samples,
-                               const double &threshold_intersection_distance,
-                               const double &threshold_no_intersection_distance,
-                               const double &finite_difference_size,
-                               const unsigned thread_index,
-                               const unsigned number_of_threads)
+    const double &finite_difference_size,
+    const unsigned &thread_index,
+    const unsigned &number_of_threads)
   {
     // Get the resolution of the image
     std::vector<unsigned> resolution = observer_pt->Get_Resolution();
@@ -2421,12 +1468,11 @@ public:
       // light rays
       for (unsigned i = 0; i < number_of_random_samples; i++)
       {
-        pixel_radiance +=
-          Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-                    number_of_bounces,
-                    threshold_intersection_distance,
-                    threshold_no_intersection_distance,
-                    finite_difference_size);
+        pixel_radiance += Light_Out_Russian(
+          observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+          threshold_intersection_distance,
+          threshold_no_intersection_distance,
+          finite_difference_size);
       }
 
       // Set the RGB value of this pixel to the average radiance over all the
@@ -2439,37 +1485,18 @@ public:
     }
   }
 
+  // MULTITHREADING DOES NOT WORK CORRECTLY RIGHT NOW: TO BE FIXED
+  // Rupinder: Fix this
   // This function can take in the number of threads to be utilised while
   // rendering the image. This relies on the function of
-  // Render_Image_Per_Thread.
-  Image Render_Image_Multithreaded(
-    const unsigned &number_of_bounces,
+  // Render_Image_Russian_Per_Thread.
+  Image Render_Image_Russian_Multithreaded(
     const unsigned &number_of_random_samples,
     const double &threshold_intersection_distance,
     const double &threshold_no_intersection_distance,
     const double &finite_difference_size,
     const unsigned &number_of_threads = std::thread::hardware_concurrency())
   {
-#ifdef TEST
-    // If no random samples are taken, no image will be produced and a division
-    // by zero may occur so we throw an error
-    if (number_of_random_samples == 0)
-    {
-      throw std::invalid_argument(
-        "The number of random samples may not be chosen as zero");
-    }
-
-    // Check if the number of threads given as an argument is less than or
-    // equal to the number of threads available. If not, reduce
-    // number_of_threads to the maximum possible value.
-    if (number_of_threads > std::thread::hardware_concurrency())
-    {
-      throw std::invalid_argument(
-        "You don't have the number of threads specified in "
-        "Render_Image_Multithreaded available.");
-    }
-#endif
-
     // Create a vector of threads
     std::vector<std::thread> threads;
 
@@ -2486,16 +1513,16 @@ public:
          thread_index++)
     {
       // Create number_of_threads threads to render the pixels of the image
-      threads.push_back(std::thread(&SceneRenderSDF::Render_Image_Per_Thread,
-                                    this,
-                                    std::ref(partitions[thread_index]),
-                                    number_of_bounces,
-                                    number_of_random_samples,
-                                    threshold_intersection_distance,
-                                    threshold_no_intersection_distance,
-                                    finite_difference_size,
-                                    thread_index,
-                                    number_of_threads));
+      threads.push_back(
+        std::thread(&SceneRender::Render_Image_Russian_Per_Thread,
+                    this,
+                    std::ref(partitions[thread_index]),
+                    number_of_random_samples,
+                    threshold_intersection_distance,
+                    threshold_no_intersection_distance,
+                    finite_difference_size,
+                    thread_index,
+                    number_of_threads));
     }
 
     // If a thread is joinable, join it
@@ -2535,18 +1562,15 @@ public:
     return image;
   }
 
-  // A function pointer to the light emitted
-  Radiance (*Light_Emitted_Fct_Pt)(const Vec3 &position) = 0;
-
-  // A function pointer to the BRDF
-  Radiance (*BRDF_Fct_Pt)(const Vec3 &position,
-                          const Vec3 &incident_light_vector,
-                          const Vec3 &outgoing_light_vector) = 0;
-
-  // A function pointer to the SDF
-  double (*SDF_Fct_Pt)(const Vec3 &position) = 0;
 
 private:
+  // A vector containing pointers to the physical objects in the scene
+  std::vector<std::unique_ptr<PhysicalObject>> object_pt_vector;
+
+  // A vector containing pointers to the physical objects described by SDFs in
+  // the scene
+  std::vector<std::unique_ptr<SDF>> sdf_object_pt_vector;
+
   // A pointer to the Observer of the scene
   std::unique_ptr<Observer> observer_pt;
 
@@ -2555,112 +1579,9 @@ private:
   std::uniform_real_distribution<double> distribution;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// End of SceneRenderSDF //////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////// Start of SDF Operations /////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-// Simplifies code by providing a 'wrapper' around a simple function, subtracts
-// 'displacement' from 'position', therefore supplying 'displaced_position' into
-// an SDF is the same as displacing the SDF by the Vec3 'displacement'.
-Vec3 displaced_position(const Vec3 &position, const Vec3 &displacement)
-{
-  return position - displacement;
-}
-
-// A 'wrapper' around the minimum function, takes the minimum of two SDFs to
-// return an SDF describing a surface that is the union of the surfaces
-// described by the two constituent SDFs.
-double union_sdf(const double &sdf_1, const double &sdf_2)
-{
-  return std::min(sdf_1, sdf_2);
-}
-
-// A 'wrapper' around the maximum function, takes the maximum of two SDFs to
-// return an SDF describing a surface that is the intersection of the surfaces
-// described by the two constituent SDFs.
-double intersection_sdf(const double &sdf_1, const double &sdf_2)
-{
-  return std::max(sdf_1, sdf_2);
-}
-
-// Takes the maximum of the first sdf and the negative of the second SDF to
-// return an SDF describing a surface that is the surface of the first SDF minus
-// the volume of the second SDF.
-double subtraction_sdf(const double &sdf_1, const double &sdf_2)
-{
-  return std::max(sdf_1, -sdf_2);
-}
-
-// Rotates the vector 'position' anti-clockwise by 'angle' radians, this has the
-// effect of rotating an SDF clockwise when 'rotate_z_axis_position' is plugged
-// in as the position vector.
-Vec3 rotate_z_axis_position(const Vec3 &position, const double &angle)
-{
-  return Vec3(cos(angle) * position.x - sin(angle) * position.y,
-              sin(angle) * position.x + cos(angle) * position.y,
-              position.z);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// End of SDF Operations //////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// Start of SDF Functions /////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-
-// Returns the SDF of a sphere centred at the origin with a radius 'radius',
-// this is simply the distance from 'position' to the origin minus the radius
-double sphere_sdf(const Vec3 &position, const double &radius)
-{
-  return (position.norm() - radius);
-}
-
-// Returns the SDF of a cube centred at the origin with the position of the
-// vertex in the positive quadrant given by 'cube_vertex_in_positive_quadrant'
-double cube_sdf(const Vec3 &position,
-                const Vec3 &cube_vertex_in_positive_quadrant)
-{
-  Vec3 absolute_position(abs(position.x), abs(position.y), abs(position.z));
-
-  Vec3 position_to_vertex =
-    absolute_position - cube_vertex_in_positive_quadrant;
-
-  return Vec3(std::max(position_to_vertex.x, 0.0),
-              std::max(position_to_vertex.y, 0.0),
-              std::max(position_to_vertex.z, 0.0))
-           .norm() +
-         std::min(
-           std::max(position_to_vertex.x,
-                    std::max(position_to_vertex.y, position_to_vertex.z)),
-           0.0);
-}
-
-// Returns the SDF of a torus centred at the origin with the z-axis passing
-// through the centre hole. This SDF is derived by taking the distance from
-// 'position' to the closest point on the circle centred at the origin lying in
-// the xy plane with radius 'circle_radius', then subtracting the radius of the
-// tube.
-double torus_sdf(const Vec3 &position,
-                 const double &circle_radius,
-                 const double &tube_radius)
-{
-  // The x component is the distance from 'position' to the closest point on an
-  // infinite cylinder centred at the origin of the xy plane with radius
-  // 'circle_radius'.
-  Vec3 intermediate_calculation = Vec3(
-    Vec3(position.x, position.y, 0.0).norm() - circle_radius, position.z, 0.0);
-
-  // Taking the norm of this vector returns the distance from 'position' to the
-  // closest point of the 2D circle lying at the origin of the xy plane with
-  // radius 'circle_radius'. Subtracting 'tube_radius' then returns the SDF of a
-  // torus.
-  return intermediate_calculation.norm() - tube_radius;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//////////////////////////// End of SDF Functions //////////////////////////////
+//////////////////////////// End of SceneRender ////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Start of Validation Case ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -2724,6 +1645,9 @@ int main()
   double rr_variance = 0.0;
   double current_answer = 0.0;
   unsigned fixed_bounces = 15;
+  double threshold_intersection_distance = 1.0e-8;
+  double threshold_no_intersection_distance = 1.0e3;
+  double finite_difference_size = 1.0e-8;
 
 
   // Create an output data file
@@ -2751,6 +1675,9 @@ int main()
       actual_answer += validation_scene
                          .Render_Image(number_of_bounces + 1,
                                        number_of_Monte_Carlo_samples_no_RR,
+                                       threshold_intersection_distance,
+                                       threshold_no_intersection_distance,
+                                       finite_difference_size,
                                        true)(0, 0)
                          .x;
     }
@@ -2820,8 +1747,14 @@ int main()
     // Find the mean and the variance of the rendering algorithm
     for (unsigned j = 0; j < number_of_samples; j++)
     {
-      current_answer =
-        validation_scene.Render_Image(fixed_bounces + 1, i * 10, true)(0, 0).x;
+      current_answer = validation_scene
+                         .Render_Image(fixed_bounces + 1,
+                                       i * 10,
+                                       threshold_intersection_distance,
+                                       threshold_no_intersection_distance,
+                                       finite_difference_size,
+                                       true)(0, 0)
+                         .x;
 
       actual_answer += current_answer;
 
@@ -2879,7 +1812,14 @@ int main()
     // Roulette implemented
     for (unsigned j = 0; j < number_of_samples; j++)
     {
-      current_answer = validation_scene.Render_Image_Russian(i * 10)(0, 0).x;
+      current_answer =
+        validation_scene
+          .Render_Image_Russian(i * 10,
+                                threshold_intersection_distance,
+                                threshold_no_intersection_distance,
+                                finite_difference_size,
+                                true)(0, 0)
+          .x;
 
       actual_answer += current_answer;
 
@@ -2953,191 +1893,65 @@ Radiance ceiling_light_emitted(const Vec3 &position)
   return Radiance(1.0, 1.0, 1.0);
 }
 
-Radiance test_BRDF(const Vec3 &position,
-                   const Vec3 &incident_light_vector,
-                   const Vec3 &outgoing_light_vector)
-{
-  if (position.z > 1.0)
-  {
-    return Radiance(1.0, 0.0, 0.0);
-  }
-  else if (position.z > -1.0)
-  {
-    return Radiance(0.0, 1.0, 0.0);
-  }
-
-  return Radiance(0.0, 0.0, 1.0);
-}
-
-double sdf(const Vec3 &position)
-{
-  double sdf_1 =
-    cube_sdf(rotate_z_axis_position(
-               displaced_position(position, Vec3(5.0, 0.0, 0.0)), pi / 4.0),
-             Vec3(1.0, 1.0, 1.0));
-
-  double sdf_2 =
-    sphere_sdf(displaced_position(position, Vec3(5.0, 0.0, 2.0)), 1.0);
-
-  double sdf_3 = position.x + 1.0;
-
-  double sdf_4 =
-    torus_sdf(displaced_position(position, Vec3(5.0, 0.0, -2.0)), 1.0, 0.5);
-
-  return union_sdf(union_sdf(sdf_1, sdf_2), union_sdf(sdf_3, sdf_4));
-}
-
 
 Radiance white_light_emitted(const Vec3 &position)
 {
   return Radiance(1.0, 1.0, 1.0);
 }
 
-// Validation case
-// Create a light emitted function for the validation case (Only the x_value
-// shall be non-zero for convenience)
-Radiance validation_light_emitted(const Vec3 &position)
-{
-  // Return this arbitrarily chosen RGB radiance value
-  return Radiance(0.125, 0.0, 0.0);
-}
-
-// Create a BRDF for the validation case (Only the x_value shall be non-zero for
-// convenience)
-Radiance validation_BRDF(const Vec3 &position,
-                         const Vec3 &incident_light_vector,
-                         const Vec3 &outgoing_light_vector)
-{
-  // Implement the Lambertian BRDF with a reflectivity of (0.25, 0.5, 0.75) in
-  // the RGB components
-  return Vec3(0.5 * pi_reciprocal, 0.0, 0.0);
-}
-
-Vec3 inverse_move_sphere(const Vec3 &position)
-{
-  return position - Vec3(5.0, 1.0, 1.0);
-}
 
 int main()
 {
-  std::vector<unsigned> resolution{1000, 500};
-
   Observer observer(Vec3(0.0, 0.0, 1.0),
                     Vec3(1.0, 0.0, 0.0),
                     Vec3(0.0, 0.0, 1.0),
                     pi / 2.5,
-                    resolution);
-
+                    std::vector<unsigned>{1000, 500});
 
   SceneRender scene(observer);
 
-  // Make a sphere SDF
-  SphereSDF sphere_sdf(1.0, false);
+  double radius = 1000.0;
 
-  Sphere sphere(Vec3(5.0, -1.0, 1.0), 1.0);
+  Sphere floor(Vec3(1.0, 0.0, 0.9 - radius), radius);
+  Sphere ceiling(Vec3(2.5, 0.0, 1.1 + radius), radius);
+  Sphere left_wall(Vec3(2.5, radius + 0.1, 2.5), radius);
+  Sphere right_wall(Vec3(2.5, -radius - 0.1, 2.5), radius);
+  Sphere back_wall(Vec3(radius + 0.5, 0.0, 2.5), radius);
+  Sphere sphere_1(Vec3(0.25, 0.05, 0.93), 0.03);
+  Sphere sphere_2(Vec3(0.4, -0.035, 0.95), 0.05);
 
-  sphere.BRDF_Fct_Pt = red_BRDF;
+  floor.BRDF_Fct_Pt = white_BRDF;
+  ceiling.BRDF_Fct_Pt = white_BRDF;
+  left_wall.BRDF_Fct_Pt = red_BRDF;
+  right_wall.BRDF_Fct_Pt = blue_BRDF;
+  back_wall.BRDF_Fct_Pt = white_BRDF;
+  sphere_1.BRDF_Fct_Pt = pink_BRDF;
+  sphere_2.BRDF_Fct_Pt = purple_BRDF;
 
-  sphere_sdf.Light_Emitted_Fct_Pt = white_light_emitted;
-  sphere_sdf.BRDF_Fct_Pt = validation_BRDF;
-  sphere_sdf.Inverse_Transformation_Fct_Pt = inverse_move_sphere;
+  ceiling.Light_Emitted_Fct_Pt = ceiling_light_emitted;
 
-  scene.Add_Object(std::make_unique<SphereSDF>(sphere_sdf));
-  scene.Add_Object(std::make_unique<Sphere>(sphere));
+  scene.Add_Object(std::make_unique<Sphere>(floor));
+  scene.Add_Object(std::make_unique<Sphere>(ceiling));
+  scene.Add_Object(std::make_unique<Sphere>(left_wall));
+  scene.Add_Object(std::make_unique<Sphere>(right_wall));
+  scene.Add_Object(std::make_unique<Sphere>(back_wall));
+  scene.Add_Object(std::make_unique<Sphere>(sphere_1));
+  scene.Add_Object(std::make_unique<Sphere>(sphere_2));
 
-  // Create a ray
-  Vec3 ray_origin(0.0, 0.0, 0.0);
-  Vec3 ray_direction(1.0, 0.0, 0.0);
-  Ray light_ray(ray_origin, ray_direction);
-
-  // Set temporary values
-  int object_intersection_index = -1;
-  int sdf_intersection_index = -1;
-
-  // Set distances
-  double threshold_intersection_distance = 1e-8;
+  unsigned nbounces = 10;
+  unsigned nsamples = 10;
+  double threshold_intersection_distance = 1.0e-8;
   double threshold_no_intersection_distance = 100.0;
-  double finite_difference_size = 0.01;
-
-  unsigned number_of_bounces = 10;
-  unsigned number_of_samples = 100;
+  double finite_difference_size = 1.0e-8;
+  bool silent = false;
 
   scene
-    .Render_Image_Russian(number_of_samples,
-                          threshold_intersection_distance,
-                          threshold_no_intersection_distance,
-                          finite_difference_size,
-                          true)
-    .Save("Images/ping2.png");
-
-  /*
-    double radius = 1000.0;
-
-    Sphere floor(Vec3(1.0, 0.0, 0.9 - radius), radius);
-    Sphere ceiling(Vec3(2.5, 0.0, 1.1 + radius), radius);
-    Sphere left_wall(Vec3(2.5, radius + 0.1, 2.5), radius);
-    Sphere right_wall(Vec3(2.5, -radius - 0.1, 2.5), radius);
-    Sphere back_wall(Vec3(radius + 0.5, 0.0, 2.5), radius);
-    Sphere sphere_1(Vec3(0.25, 0.05, 0.93), 0.03);
-    Sphere sphere_2(Vec3(0.4, -0.035, 0.95), 0.05);
-
-    floor.BRDF_Fct_Pt = white_BRDF;
-    ceiling.BRDF_Fct_Pt = white_BRDF;
-    left_wall.BRDF_Fct_Pt = red_BRDF;
-    right_wall.BRDF_Fct_Pt = blue_BRDF;
-    back_wall.BRDF_Fct_Pt = white_BRDF;
-    sphere_1.BRDF_Fct_Pt = pink_BRDF;
-    sphere_2.BRDF_Fct_Pt = purple_BRDF;
-
-    ceiling.Light_Emitted_Fct_Pt = ceiling_light_emitted;
-
-    scene.Add_Object(std::make_unique<Sphere>(floor));
-    scene.Add_Object(std::make_unique<Sphere>(ceiling));
-    scene.Add_Object(std::make_unique<Sphere>(left_wall));
-    scene.Add_Object(std::make_unique<Sphere>(right_wall));
-    scene.Add_Object(std::make_unique<Sphere>(back_wall));
-    scene.Add_Object(std::make_unique<Sphere>(sphere_1));
-    scene.Add_Object(std::make_unique<Sphere>(sphere_2));
-
-
-    scene.Render_Image_Russian(10).Save("Images/Test.png");
-
-
-
-      std::vector<unsigned> test_resolution{100, 100};
-
-      Observer test_observer(Vec3(0.0, 0.0, 0.0),
-                             Vec3(1.0, 0.0, 0.0),
-                             Vec3(0.0, 0.0, 1.0),
-                             pi / 3.0,
-                             test_resolution);
-
-      SceneRenderSDF test_scene(test_observer);
-
-      test_scene.SDF_Fct_Pt = sdf;
-
-      test_scene.Light_Emitted_Fct_Pt = white_light_emitted;
-
-      test_scene.BRDF_Fct_Pt = test_BRDF;
-
-      Vec3 ray_position(0.0, 0.0, 0.0);
-      Vec3 ray_direction(1.0, 0.0, 0.0);
-
-      Ray light_ray(ray_position, ray_direction);
-
-      unsigned nbounces = 5;
-      double threshold_intersection_distance = 1e-8;
-      double threshold_no_intersection_distance = 100.0;
-      double finite_difference_size = 1e-8;
-
-      test_scene
-        .Render_Image(nbounces,
-                      100,
-                      threshold_intersection_distance,
-                      threshold_no_intersection_distance,
-                      finite_difference_size)
-        .Save("Images/test.png");
-        */
+    .Render_Image(nbounces,
+                  nsamples,
+                  threshold_intersection_distance,
+                  threshold_no_intersection_distance,
+                  finite_difference_size)
+    .Save("Images/Test2.png");
 }
 
 #endif
