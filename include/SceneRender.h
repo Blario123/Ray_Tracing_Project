@@ -3,12 +3,10 @@
 
 #include "SDF.h"
 
-class SceneRender
-{
+class SceneRender {
 public:
     // Constructor
-    SceneRender(Observer &observer_)
-    {
+    SceneRender(Observer &observer_) {
         // Only an observer is required in the construction of a scene
         observer_pt = std::make_unique<Observer>(observer_);
 
@@ -21,42 +19,36 @@ public:
     }
 
     // Add objects to the scene via a unique pointer
-    void Add_Object(std::unique_ptr<PhysicalObject> &object_upt)
-    {
+    void Add_Object(std::unique_ptr<PhysicalObject> &object_upt) {
         object_pt_vector.push_back(std::move(object_upt));
     }
 
 
     // The same function as above but now accepting rvalues
-    void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt)
-    {
+    void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt) {
         object_pt_vector.push_back(std::move(object_upt));
     }
 
 
     // Add SDF defined objects to the scene via a unique pointer
-    void Add_Object(std::unique_ptr<SDF> &object_upt)
-    {
+    void Add_Object(std::unique_ptr<SDF> &object_upt) {
         sdf_object_pt_vector.push_back(std::move(object_upt));
     }
 
 
     // The same function as above but now accepting rvalues
-    void Add_Object(std::unique_ptr<SDF> &&object_upt)
-    {
+    void Add_Object(std::unique_ptr<SDF> &&object_upt) {
         sdf_object_pt_vector.push_back(std::move(object_upt));
     }
 
 
     // Random hemisphere vector generator
-    Vec3 Hemisphere_Vector_Generator(const Vec3 &normal)
-    {
+    Vec3 Hemisphere_Vector_Generator(const Vec3 &normal) {
         // The random vector is instantiated first
         Vec3 random_vector;
 
         // Keep looping over this algorithm until a suitable vector is found
-        while (true)
-        {
+        while (true) {
             // The purpose of this algorithm is to generate a normal distribution of
             // points on a unit hemisphere. The hemisphere we have is such that a
             // vector from the centre to a point on the hemisphere has a positive dot
@@ -77,15 +69,13 @@ public:
 
             // Check the random vector is inside the unit sphere but isn't the zero
             // vector
-            if (modulus <= 1.0 && modulus > 0.0)
-            {
+            if (modulus <= 1.0 && modulus > 0.0) {
                 // Normalise the random vector
                 random_vector.normalise();
 
                 // Make sure that the random vector is in the hemisphere defined by the
                 // direction of the normal
-                if (dot(random_vector, normal) < 0.0)
-                {
+                if (dot(random_vector, normal) < 0.0) {
                     random_vector = -random_vector;
                 }
                 break;
@@ -98,27 +88,23 @@ public:
 
 
     // Take the union of the multiple SDFs provided, by taking the minimum value
-    double SDF_Fct(const Vec3 &position) const
-    {
+    double SDF_Fct(const Vec3 &position) const {
         // Allocate storage for the minimum SDF value and the value of the current
         // SDF as we loop through them
         double minimum_distance = 0.0;
         double current_distance = 0.0;
 
-        if (sdf_object_pt_vector.size() > 0)
-        {
+        if (sdf_object_pt_vector.size() > 0) {
             // Set the minimum SDF value equal to the SDF of the first SDF provided
             minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
         }
 
         // Loop through the rest of the SDFs and find the minimum value of the SDFs
         // at "position"
-        for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
-        {
+        for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++) {
             // If we find a smaller SDF value, set minimum_distance to that value
             double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
-            if (current_distance < minimum_distance)
-            {
+            if (current_distance < minimum_distance) {
                 minimum_distance = current_distance;
             }
         }
@@ -131,15 +117,13 @@ public:
     // sdf_object_pt_vector. The reason for having sdf_intersection_index, is to
     // allow us to find out which surface light rays are intersecting with so we
     // can find the appropriate BRDF and Light_Emitted function.
-    double SDF_Fct(const Vec3 &position, int &sdf_intersection_index) const
-    {
+    double SDF_Fct(const Vec3 &position, int &sdf_intersection_index) const {
         // Allocate storage for the minimum SDF value and the value of the current
         // SDF as we loop through them
         double minimum_distance = 0.0;
         double current_distance = 0.0;
 
-        if (sdf_object_pt_vector.size() > 0)
-        {
+        if (sdf_object_pt_vector.size() > 0) {
             // Set the minimum SDF value equal to the SDF of the first SDF provided,
             // and
             // set the value of sdf_intersection_index to the index of this first SDF.
@@ -150,13 +134,11 @@ public:
         // Loop through the rest of the SDFs and find the minimum value of the SDFs
         // at "position". Also set sdf_intersection_index to the corresponding index
         // value.
-        for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++)
-        {
+        for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++) {
             // If we find a smaller SDF value, set minimum_distance and
             // sdf_intersection_index
             current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
-            if (current_distance < minimum_distance)
-            {
+            if (current_distance < minimum_distance) {
                 minimum_distance = current_distance;
                 sdf_intersection_index = i;
             }
@@ -181,8 +163,7 @@ public:
             int &object_intersection_index,
             int &sdf_intersection_index,
             const double &threshold_intersection_distance,
-            const double &threshold_no_intersection_distance)
-    {
+            const double &threshold_no_intersection_distance) {
         // Store the indices of the closest intersection that light_ray intersects
         // with. Only one of these indices can not be -1 when this function returns
         // since only one object is the closest object that light_ray intersects
@@ -207,30 +188,25 @@ public:
         Vec3 intersection_point(0.0, 0.0, 0.0);
 
         // Loop over every object in the scene to find an intersection
-        for (unsigned i = 0; i < object_pt_vector.size(); i++)
-        {
+        for (unsigned i = 0; i < object_pt_vector.size(); i++) {
             // If an intersection has already been found, check whether this new
             // intersection is closer to the light ray source than the previous
             // closest intersection.
-            if (object_intersection_index != -1)
-            {
+            if (object_intersection_index != -1) {
                 // Check whether this intersection is closer than the previous closest
                 // one. If so, replace smallest_distance
                 if (object_pt_vector[i]->Intersection_Check(light_ray,
                                                             current_distance) &&
-                    current_distance < smallest_distance)
-                {
+                    current_distance < smallest_distance) {
                     smallest_distance = current_distance;
                     object_intersection_index = i;
                 }
             }
                 // If an intersection hasn't been found yet, any intersection will be the
                 // closest intersection so far.
-            else
-            {
+            else {
                 if (object_pt_vector[i]->Intersection_Check(light_ray,
-                                                            current_distance))
-                {
+                                                            current_distance)) {
                     // This section of code will only be invoked when the first
                     // intersection is found.
                     smallest_distance = current_distance;
@@ -253,16 +229,14 @@ public:
         // with SDF defined surfaces.
 
         if (sdf_object_pt_vector.size() > 0 &&
-            safe_travel_distance < smallest_distance)
-        {
+            safe_travel_distance < smallest_distance) {
             // Travel along the light_ray while the light_ray has not intersected with
             // an SDF, has not gotten too far away from a surface, or has already
             // passed through a non-SDF defined surface
             while (safe_travel_distance >= threshold_intersection_distance &&
                    safe_travel_distance <= threshold_no_intersection_distance &&
                    (distance_travelled < smallest_distance ||
-                    object_intersection_index == -1))
-            {
+                    object_intersection_index == -1)) {
                 // Move along the ray by "safe_travel_distance" and evaluate the SDF,
                 // the value of the SDF is the distance we travel in the next iteration,
                 // so we save it as "new_safe_travel_distance"
@@ -280,8 +254,7 @@ public:
 
             // If we have intersected with an SDF, we return the index of the SDF that
             // our ray intersected with and the point of intersection.
-            if (safe_travel_distance < threshold_intersection_distance)
-            {
+            if (safe_travel_distance < threshold_intersection_distance) {
                 // If we get to this block of code, our light ray will have intersected
                 // an SDF before a non-SDF surface. Therefore we first find the
                 // intersection point.
@@ -307,8 +280,7 @@ public:
 
         // We return the point of intersection between our ray and a
         //  non-SDF surface if there has been an intersection.
-        if (object_intersection_index != -1)
-        {
+        if (object_intersection_index != -1) {
             intersection_point =
                     (light_ray.Get_Initial_Position() +
                      smallest_distance * light_ray.Get_Direction_Vector());
@@ -326,12 +298,10 @@ public:
                        unsigned bounces_remaining,
                        const double &threshold_intersection_distance,
                        const double &threshold_no_intersection_distance,
-                       const double &finite_difference_size)
-    {
+                       const double &finite_difference_size) {
         // If the light ray can't bounce off a single object, no light will reach
         // the "observer".
-        if (bounces_remaining == 0)
-        {
+        if (bounces_remaining == 0) {
             return Radiance(0.0, 0.0, 0.0);
         }
 
@@ -358,8 +328,7 @@ public:
                                          threshold_no_intersection_distance);
 
         // If no surface was hit by light_ray, we return zero radiance
-        if (object_intersection_index == -1 && sdf_intersection_index == -1)
-        {
+        if (object_intersection_index == -1 && sdf_intersection_index == -1) {
             return Radiance(0.0, 0.0, 0.0);
         }
 
@@ -368,8 +337,7 @@ public:
 
         // If object_intersection_index is -1, we must have intersected with an SDF,
         // therefore we find the Light_Emitted at the point of intersection.
-        if (object_intersection_index == -1)
-        {
+        if (object_intersection_index == -1) {
             resulting_light =
                     sdf_object_pt_vector[sdf_intersection_index]->Light_Emitted(
                             intersection_point);
@@ -378,9 +346,7 @@ public:
             // intersection
             normal = sdf_object_pt_vector[sdf_intersection_index]->Outward_Normal(
                     intersection_point, finite_difference_size);
-        }
-        else
-        {
+        } else {
             // Otherwise we intersected with a non-SDF surface and we find the light
             // emitted by this surface at the point of intersection.
             resulting_light =
@@ -415,15 +381,12 @@ public:
 
         // Find the BRDF of the first object hit by light_ray, the code slightly
         // differs for the different types of surfaces.
-        if (object_intersection_index == -1)
-        {
+        if (object_intersection_index == -1) {
             BRDF = sdf_object_pt_vector[sdf_intersection_index]->BRDF(
                     intersection_point,
                     light_ray.Get_Direction_Vector(),
                     new_ray.Get_Direction_Vector());
-        }
-        else
-        {
+        } else {
             BRDF = object_pt_vector[object_intersection_index]->BRDF(
                     intersection_point,
                     light_ray.Get_Direction_Vector(),
@@ -449,8 +412,7 @@ public:
                        const double &threshold_intersection_distance,
                        const double &threshold_no_intersection_distance,
                        const double &finite_difference_size,
-                       const bool &silent = false)
-    {
+                       const bool &silent = false) {
         // Find the resolution of the observer
         std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
@@ -466,32 +428,26 @@ public:
         double proportion_done = 0.0;
 
         // Calculate the radiance of each pixel of the image
-        for (unsigned i = 0; i < resolution[0]; i++)
-        {
+        for (unsigned i = 0; i < resolution[0]; i++) {
             // This section of code is for outputting the progress to the terminal
 
             // Don't output progress if 'silent' is true
-            if (!silent)
-            {
+            if (!silent) {
                 // Find the proportion of pixels calculated
                 proportion_done = double(i + 1) / double(resolution[0]);
 
                 // Every time 10% or more of the pixels have been rendered, print to the
                 // terminal
-                if (unsigned(10.0 * proportion_done) > tenth_percentiles)
-                {
+                if (unsigned(10.0 * proportion_done) > tenth_percentiles) {
                     // tenth_percentiles is used to keep track of the last 10th percent
                     // printed
                     tenth_percentiles = unsigned(10.0 * proportion_done);
 
                     // The tenth tenth_percentile is 100% so the image will have been
                     // rendered
-                    if (tenth_percentiles == 10)
-                    {
+                    if (tenth_percentiles == 10) {
                         std::cout << "The image has been rendered." << std::endl;
-                    }
-                    else
-                    {
+                    } else {
                         // Update the terminal on the latest 10% done
                         std::cout << "Roughly " << 10 * tenth_percentiles
                                   << "\% of the pixels have been rendered." << std::endl;
@@ -500,16 +456,14 @@ public:
             }
 
             // Find the radiance at each pixel and set each pixel to this RGB value
-            for (unsigned j = 0; j < resolution[1]; j++)
-            {
+            for (unsigned j = 0; j < resolution[1]; j++) {
                 // Set the radiance at each pixel to zero before calculating the
                 // radiance
                 pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
 
                 // Sum up the radiance of multiple light rays "shot out" from the camera
                 // in the direction of this pixel
-                for (unsigned k = 0; k < number_of_random_samples; k++)
-                {
+                for (unsigned k = 0; k < number_of_random_samples; k++) {
                     pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
                                                 number_of_bounces,
                                                 threshold_intersection_distance,
@@ -538,8 +492,7 @@ public:
                                  const double &threshold_no_intersection_distance,
                                  const double &finite_difference_size,
                                  const unsigned &thread_index,
-                                 const unsigned &number_of_threads)
-    {
+                                 const unsigned &number_of_threads) {
         // Get the resolution of the image
         std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
@@ -562,8 +515,7 @@ public:
         unsigned pixel_index_i = 0;
         unsigned pixel_index_j = 0;
 
-        while (pixel_index < number_of_pixels)
-        {
+        while (pixel_index < number_of_pixels) {
             // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
             // image, this is calculated from pixel_index and the resolution
             pixel_index_i = pixel_index % resolution[0];
@@ -574,8 +526,7 @@ public:
 
             // Take the total radiance for a pixel over number_of_random_samples
             // light rays
-            for (unsigned i = 0; i < number_of_random_samples; i++)
-            {
+            for (unsigned i = 0; i < number_of_random_samples; i++) {
                 pixel_radiance +=
                         Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
                                   number_of_bounces,
@@ -606,8 +557,7 @@ public:
             const double &threshold_intersection_distance,
             const double &threshold_no_intersection_distance,
             const double &finite_difference_size,
-            const unsigned &number_of_threads = std::thread::hardware_concurrency())
-    {
+            const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
         // Create a vector of threads
         std::vector<std::thread> threads;
 
@@ -621,8 +571,7 @@ public:
         std::vector<std::vector<Radiance>> partitions(number_of_threads);
 
         for (unsigned thread_index = 0; thread_index < number_of_threads;
-             thread_index++)
-        {
+             thread_index++) {
             // Create number_of_threads threads to render the pixels of the image
             threads.push_back(
                     std::thread(&SceneRender::Render_Image_Per_Thread,
@@ -638,10 +587,8 @@ public:
         }
 
         // If a thread is joinable, join it
-        for (std::thread &t : threads)
-        {
-            if (t.joinable())
-            {
+        for (std::thread &t: threads) {
+            if (t.joinable()) {
                 t.join();
             }
         }
@@ -653,8 +600,7 @@ public:
 
         // Loop over every pixel in image and find the correct value of Radiance
         // in partitions to assign to this pixel.
-        while (pixel_index < resolution[0] * resolution[1])
-        {
+        while (pixel_index < resolution[0] * resolution[1]) {
             // If the rows of pixels from top to bottom of an image were laid end
             // to end, and the index of a pixel in this "vector" of pixels were given
             // as pixel_index, find the (i, j)-th index of this pixel in the image.
@@ -685,8 +631,7 @@ public:
     Radiance Light_Out_Russian(const Ray &light_ray,
                                const double &threshold_intersection_distance,
                                const double &threshold_no_intersection_distance,
-                               const double &finite_difference_size)
-    {
+                               const double &finite_difference_size) {
         // Store the radiance that light_ray will "carry"
         Radiance resulting_light(0.0, 0.0, 0.0);
 
@@ -710,8 +655,7 @@ public:
                                          threshold_no_intersection_distance);
 
         // If no surface was hit by light_ray, we return zero radiance
-        if (object_intersection_index == -1 && sdf_intersection_index == -1)
-        {
+        if (object_intersection_index == -1 && sdf_intersection_index == -1) {
             return Radiance(0.0, 0.0, 0.0);
         }
 
@@ -720,8 +664,7 @@ public:
 
         // If object_intersection_index is -1, we must have intersected with an SDF,
         // therefore we find the Light_Emitted at the point of intersection.
-        if (object_intersection_index == -1)
-        {
+        if (object_intersection_index == -1) {
             resulting_light =
                     sdf_object_pt_vector[sdf_intersection_index]->Light_Emitted(
                             intersection_point);
@@ -730,9 +673,7 @@ public:
             // intersection
             normal = sdf_object_pt_vector[sdf_intersection_index]->Outward_Normal(
                     intersection_point, finite_difference_size);
-        }
-        else
-        {
+        } else {
             // Otherwise we intersected with a non-SDF surface and we find the light
             // emitted by this surface at the point of intersection.
             resulting_light =
@@ -753,15 +694,12 @@ public:
 
         // Find the BRDF of the first object hit by light_ray, the code slightly
         // differs for the different types of surfaces.
-        if (object_intersection_index == -1)
-        {
+        if (object_intersection_index == -1) {
             BRDF = sdf_object_pt_vector[sdf_intersection_index]->BRDF(
                     intersection_point,
                     light_ray.Get_Direction_Vector(),
                     new_ray.Get_Direction_Vector());
-        }
-        else
-        {
+        } else {
             BRDF = object_pt_vector[object_intersection_index]->BRDF(
                     intersection_point,
                     light_ray.Get_Direction_Vector(),
@@ -786,8 +724,7 @@ public:
         std::uniform_real_distribution<double> distribution(0.0, 1.0);
 
         // Enforce the termination probability
-        if (distribution(generator) < dot_product)
-        {
+        if (distribution(generator) < dot_product) {
             // Add the radiance from all the objects the light ray hits as it bounces
             // a fixed amount of times
             resulting_light += 2.0 * pi * BRDF *
@@ -805,8 +742,7 @@ public:
                                const double &threshold_intersection_distance,
                                const double &threshold_no_intersection_distance,
                                const double &finite_difference_size,
-                               const bool &silent = false)
-    {
+                               const bool &silent = false) {
         // Find the resolution of the observer
         std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
@@ -822,32 +758,26 @@ public:
         double proportion_done = 0.0;
 
         // Calculate the radiance of each pixel of the image
-        for (unsigned i = 0; i < resolution[0]; i++)
-        {
+        for (unsigned i = 0; i < resolution[0]; i++) {
             // This section of code is for outputting the progress to the terminal
 
             // Don't output progress if 'silent' is true
-            if (!silent)
-            {
+            if (!silent) {
                 // Find the proportion of pixels calculated
                 proportion_done = double(i + 1) / double(resolution[0]);
 
                 // Every time 10% or more of the pixels have been rendered, print to the
                 // terminal
-                if (unsigned(10.0 * proportion_done) > tenth_percentiles)
-                {
+                if (unsigned(10.0 * proportion_done) > tenth_percentiles) {
                     // tenth_percentiles is used to keep track of the last 10th percent
                     // printed
                     tenth_percentiles = unsigned(10.0 * proportion_done);
 
                     // The tenth tenth_percentile is 100% so the image will have been
                     // rendered
-                    if (tenth_percentiles == 10)
-                    {
+                    if (tenth_percentiles == 10) {
                         std::cout << "The image has been rendered." << std::endl;
-                    }
-                    else
-                    {
+                    } else {
                         // Update the terminal on the latest 10% done
                         std::cout << "Roughly " << 10 * tenth_percentiles
                                   << "\% of the pixels have been rendered." << std::endl;
@@ -856,8 +786,7 @@ public:
             }
 
             // Find the radiance at each pixel and set each pixel to this RGB value
-            for (unsigned j = 0; j < resolution[1]; j++)
-            {
+            for (unsigned j = 0; j < resolution[1]; j++) {
                 // Set the radiance at each pixel to zero before calculating the
                 // radiance
                 pixel_radiance.x = 0.0;
@@ -866,8 +795,7 @@ public:
 
                 // Sum up the radiance of multiple light rays "shot out" from the camera
                 // in the direction of this pixel
-                for (unsigned k = 0; k < number_of_random_samples; k++)
-                {
+                for (unsigned k = 0; k < number_of_random_samples; k++) {
                     pixel_radiance +=
                             Light_Out_Russian(observer_pt->Ray_To_Pixel_XY(i, j),
                                               threshold_intersection_distance,
@@ -896,8 +824,7 @@ public:
             const double &threshold_no_intersection_distance,
             const double &finite_difference_size,
             const unsigned &thread_index,
-            const unsigned &number_of_threads)
-    {
+            const unsigned &number_of_threads) {
         // Get the resolution of the image
         std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 
@@ -920,8 +847,7 @@ public:
         unsigned pixel_index_i = 0;
         unsigned pixel_index_j = 0;
 
-        while (pixel_index < number_of_pixels)
-        {
+        while (pixel_index < number_of_pixels) {
             // pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
             // image, this is calculated from pixel_index and the resolution
             pixel_index_i = pixel_index % resolution[0];
@@ -932,8 +858,7 @@ public:
 
             // Take the total radiance for a pixel over number_of_random_samples
             // light rays
-            for (unsigned i = 0; i < number_of_random_samples; i++)
-            {
+            for (unsigned i = 0; i < number_of_random_samples; i++) {
                 pixel_radiance += Light_Out_Russian(
                         observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
                         threshold_intersection_distance,
@@ -961,8 +886,7 @@ public:
             const double &threshold_intersection_distance,
             const double &threshold_no_intersection_distance,
             const double &finite_difference_size,
-            const unsigned &number_of_threads = std::thread::hardware_concurrency())
-    {
+            const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
         // Create a vector of threads
         std::vector<std::thread> threads;
 
@@ -976,8 +900,7 @@ public:
         std::vector<std::vector<Radiance>> partitions(number_of_threads);
 
         for (unsigned thread_index = 0; thread_index < number_of_threads;
-             thread_index++)
-        {
+             thread_index++) {
             // Create number_of_threads threads to render the pixels of the image
             threads.push_back(
                     std::thread(&SceneRender::Render_Image_Russian_Per_Thread,
@@ -992,10 +915,8 @@ public:
         }
 
         // If a thread is joinable, join it
-        for (std::thread &t : threads)
-        {
-            if (t.joinable())
-            {
+        for (std::thread &t: threads) {
+            if (t.joinable()) {
                 t.join();
             }
         }
@@ -1007,8 +928,7 @@ public:
 
         // Loop over every pixel in image and find the correct value of Radiance
         // in partitions to assign to this pixel.
-        while (pixel_index < resolution[0] * resolution[1])
-        {
+        while (pixel_index < resolution[0] * resolution[1]) {
             // If the rows of pixels from top to bottom of an image were laid end
             // to end, and the index of a pixel in this "vector" of pixels were given
             // as pixel_index, find the (i, j)-th index of this pixel in the image.

@@ -1,15 +1,13 @@
 #ifndef OBSERVER_H
 #define OBSERVER_H
 
-class Observer
-{
+class Observer {
 public:
     Observer(const Vec3 &position_,
              const Vec3 &camera_direction_,
              const Vec3 &upward_direction_,
              const double &horizontal_field_of_view_angle_,
-             const std::vector<unsigned> &resolution_)
-    {
+             const std::vector<unsigned> &resolution_) {
         // Define the member variables
 
         // Position of the camera
@@ -40,8 +38,7 @@ public:
 
     // When given a pixel, this function will return the normalised vector from
     // the camera to the given pixel on the "grid" in front of the camera
-    Ray Ray_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel)
-    {
+    Ray Ray_To_Pixel_XY(const unsigned &x_pixel, const unsigned &y_pixel) {
         // Add the vector from the camera to the centre of the "tennis racket" with
         // the vector to the pixel specified from the centre of the "tennis racket"
 
@@ -50,16 +47,14 @@ public:
         // If one of the dimensions of the resolution is 1, the calculation of
         // 'direction_to_pixel' returns nan when we want 0. So we check the
         // dimensions of the resolution in turn.
-        if (resolution[0] != 1)
-        {
+        if (resolution[0] != 1) {
             direction_to_pixel +=
                     tan(horizontal_field_of_view_angle / 2.0) *
                     ((2.0 * double(x_pixel)) / (double(resolution[0]) - 1.0) - 1.0) *
                     unit_sideways_direction;
         }
 
-        if (resolution[1] != 1)
-        {
+        if (resolution[1] != 1) {
             direction_to_pixel -=
                     tan(vertical_field_of_view_angle / 2.0) *
                     ((2.0 * double(y_pixel)) / (double(resolution[1]) - 1.0) - 1.0) *
@@ -73,8 +68,7 @@ public:
     } // End of Ray_To_Pixel_XY
 
     // Constant access function to the resolution of the camera
-    std::vector<unsigned> Get_Resolution() const
-    {
+    std::vector<unsigned> Get_Resolution() const {
         // Just return the vector containing the resolution
         return resolution;
     } // End of Get_Resolution

@@ -21,7 +21,8 @@ find_package(Qt6 COMPONENTS
 include_directories(include)
 
 set(CPPSOURCE
-        main.cpp)
+        main.cpp
+        GUI.cpp)
 set(HSOURCE
         include/main.h
         include/GUI.h
@@ -32,7 +33,8 @@ set(HSOURCE
         include/SceneRender.h
         include/SDF.h
         include/stb_image_write.h
-        include/Vec3.h)
+        include/Vec3.h
+        include/GUI.h)
 
 add_executable(${PROJECT_NAME} ${CPPSOURCE} ${HSOURCE})
 

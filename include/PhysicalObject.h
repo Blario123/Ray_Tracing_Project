@@ -3,8 +3,7 @@
 
 #include "RayTracingProject.h"
 
-class PhysicalObject
-{
+class PhysicalObject {
 public:
     // Virtual destructor
     virtual ~PhysicalObject() {}
@@ -12,17 +11,13 @@ public:
     // This function returns the components of the light emitted from this
     // object's surface given a position on the surface and the direction of the
     // light.
-    virtual Radiance Light_Emitted(const Vec3 &position)
-    {
-        if (Light_Emitted_Fct_Pt == 0)
-        {
+    virtual Radiance Light_Emitted(const Vec3 &position) {
+        if (Light_Emitted_Fct_Pt == 0) {
             // If the pointer to the light emitted is a null pointer, return the zero
             // vector
             Radiance zero_vector(0.0, 0.0, 0.0);
             return zero_vector;
-        }
-        else
-        {
+        } else {
             // If Light_Emitted_Fct_Pt points to a function, evaluate this function
             return (*Light_Emitted_Fct_Pt)(position);
         }
@@ -33,16 +28,12 @@ public:
     // given a position, incident light vector and outgoing light vector.
     virtual Radiance BRDF(const Vec3 &position,
                           const Vec3 &incident_light_vector,
-                          const Vec3 &outgoing_light_vector)
-    {
-        if (BRDF_Fct_Pt == 0)
-        {
+                          const Vec3 &outgoing_light_vector) {
+        if (BRDF_Fct_Pt == 0) {
             // If the pointer to the BRDF is a null pointer, return the zero vector
             Radiance zero_vector(0.0, 0.0, 0.0);
             return zero_vector;
-        }
-        else
-        {
+        } else {
             // If BRDF_Fct_Pt points to a function, evaluate this function
             return (*BRDF_Fct_Pt)(
                     position, incident_light_vector, outgoing_light_vector);
@@ -72,12 +63,10 @@ public:
                             const Vec3 &outgoing_light_vector) = 0;
 };
 
-class Sphere : public PhysicalObject
-{
+class Sphere : public PhysicalObject {
 public:
     // The constructor for a sphere requiring only a centre and a radius
-    Sphere(const Vec3 &centre_, const double &radius_)
-    {
+    Sphere(const Vec3 &centre_, const double &radius_) {
         // Define the private member data values
         centre = centre_;
         radius = radius_;
@@ -88,8 +77,7 @@ public:
     // intersects with this object. Also returns the closest distance from the
     // light ray source to the sphere along with the normal vector to the sphere
     // at the point of intersection.
-    bool Intersection_Check(const Ray &light_ray, double &distance)
-    {
+    bool Intersection_Check(const Ray &light_ray, double &distance) {
         Vec3 initial_position = light_ray.Get_Initial_Position();
         Vec3 direction_vector = light_ray.Get_Direction_Vector();
 
@@ -114,33 +102,26 @@ public:
 
 
         // If the determinant is not positive, there are no intersections.
-        if (determinant > 0.0)
-        {
+        if (determinant > 0.0) {
             // This Boolean will be used a few times
             const bool linear_coefficient_bigger_than_sqrt_determinant =
                     abs(linear_coefficient) > sqrt(determinant);
 
-            if (abs(linear_coefficient) < 1.0e-8)
-            {
+            if (abs(linear_coefficient) < 1.0e-8) {
                 // Calculate the distance using the quadratic formula without the linear
                 // coefficient
                 distance = sqrt(determinant) / (2.0 * quadratic_coefficient);
 
                 // There is an intersection
                 return true;
-            }
-            else if (linear_coefficient > 0.0)
-            {
+            } else if (linear_coefficient > 0.0) {
                 // If the linear coefficient is negative and has a larger absolute value
                 // than the square root of the determinant, the distance will always be
                 // negative
-                if (linear_coefficient_bigger_than_sqrt_determinant)
-                {
+                if (linear_coefficient_bigger_than_sqrt_determinant) {
                     // There is no intersection
                     return false;
-                }
-                else
-                {
+                } else {
                     // Find the distance using the quadratic formula
                     distance = (-linear_coefficient + sqrt(determinant)) /
                                (2.0 * quadratic_coefficient);
@@ -148,22 +129,18 @@ public:
                     // There is an intersection
                     return true;
                 }
-            }
-            else
+            } else
                 // If the linear coefficient is negative
             {
                 // If this Boolean is true, there are two positive roots
-                if (linear_coefficient_bigger_than_sqrt_determinant)
-                {
+                if (linear_coefficient_bigger_than_sqrt_determinant) {
                     // Calculate the smallest positive root of the quadratic equation
                     distance = (-linear_coefficient - sqrt(determinant)) /
                                (2.0 * quadratic_coefficient);
 
                     // There is an intersection
                     return true;
-                }
-                else
-                {
+                } else {
                     // If the linear coefficient is smaller than the square root of the
                     // determinant, there is only one positive root
                     distance = (-linear_coefficient + sqrt(determinant)) /
@@ -182,8 +159,7 @@ public:
 
     // Gives the normal to the sphere at a given point such that the dot product
     // with the second argument is positive
-    Vec3 Orientated_Normal(const Vec3 &position, const Vec3 &direction)
-    {
+    Vec3 Orientated_Normal(const Vec3 &position, const Vec3 &direction) {
         // Find the outward normal of a sphere
         Vec3 normal = position - centre;
 
@@ -192,8 +168,7 @@ public:
 
         // Ensure that the normal vector given has a positive dot product with the
         // second argument to this function
-        if (dot(normal, direction) < 0.0)
-        {
+        if (dot(normal, direction) < 0.0) {
             normal = -normal;
         }
 

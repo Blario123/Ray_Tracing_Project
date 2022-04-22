@@ -9,6 +9,7 @@
 #include "RayTracingProject.h"
 #include "SceneRender.h"
 #include "SDF.h"
+#include "GUI.h"
 
 Radiance red_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
     return damping_factor * pi_reciprocal * Radiance(1.0, 0.2, 0.2);

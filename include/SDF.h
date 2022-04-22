@@ -1,8 +1,7 @@
 #ifndef SDF_H
 #define SDF_H
 
-class SDF
-{
+class SDF {
 public:
     // Do nothing destructor
     virtual ~SDF() {}
@@ -13,16 +12,12 @@ public:
     // The function describing the inverse of the transformation of the position
     // of the current SDF-defined surface. The function is defined via a function
     // pointer.
-    virtual Vec3 Inverse_Transformation(const Vec3 &position) const
-    {
+    virtual Vec3 Inverse_Transformation(const Vec3 &position) const {
         // If there is no inverse transformation defined, don't apply the inverse
         // transformation to the position vector.
-        if (Inverse_Transformation_Fct_Pt == 0)
-        {
+        if (Inverse_Transformation_Fct_Pt == 0) {
             return position;
-        }
-        else
-        {
+        } else {
             // If there is an inverse transformation defined, apply it to the position
             // vector.
             return Inverse_Transformation_Fct_Pt(position);
@@ -32,17 +27,13 @@ public:
     // This function returns the components of the light emitted from this
     // object's surface given a position on the surface and the direction of the
     // light.
-    virtual Radiance Light_Emitted(const Vec3 &position)
-    {
-        if (Light_Emitted_Fct_Pt == 0)
-        {
+    virtual Radiance Light_Emitted(const Vec3 &position) {
+        if (Light_Emitted_Fct_Pt == 0) {
             // If the pointer to the light emitted is a null pointer, return the zero
             // vector
             Radiance zero_vector(0.0, 0.0, 0.0);
             return zero_vector;
-        }
-        else
-        {
+        } else {
             // If Light_Emitted_Fct_Pt points to a function, evaluate this function
             return (*Light_Emitted_Fct_Pt)(position);
         }
@@ -53,16 +44,12 @@ public:
     // given a position, incident light vector and outgoing light vector.
     virtual Radiance BRDF(const Vec3 &position,
                           const Vec3 &incident_light_vector,
-                          const Vec3 &outgoing_light_vector)
-    {
-        if (BRDF_Fct_Pt == 0)
-        {
+                          const Vec3 &outgoing_light_vector) {
+        if (BRDF_Fct_Pt == 0) {
             // If the pointer to the BRDF is a null pointer, return the zero vector
             Radiance zero_vector(0.0, 0.0, 0.0);
             return zero_vector;
-        }
-        else
-        {
+        } else {
             // If BRDF_Fct_Pt points to a function, evaluate this function
             return (*BRDF_Fct_Pt)(
                     position, incident_light_vector, outgoing_light_vector);
@@ -73,8 +60,7 @@ public:
     // This function obtains the outward unit normal to the current instance of
     // the SDF-defined defined surface via the central finite difference method.
     virtual Vec3 Outward_Normal(const Vec3 &position,
-                                const double &finite_difference_size)
-    {
+                                const double &finite_difference_size) {
         // The central finite difference of the SDF is taken in all three coordinate
         // directions in order to get the gradient of the SDF. This gradient is a
         // normal to any isosurface at 'position'. This gradient is then normalised
@@ -129,12 +115,10 @@ public:
     bool invert_SDF = false;
 };
 
-class SphereSDF : public SDF
-{
+class SphereSDF : public SDF {
 public:
     // SphereSDF constructor: Set the radius and the inside/outside of the sphere
-    SphereSDF(const double &radius_, const bool &invert_SDF_)
-    {
+    SphereSDF(const double &radius_, const bool &invert_SDF_) {
         // Set the radius
         radius = radius_;
 
@@ -143,8 +127,7 @@ public:
     }
 
     // Define the SDF function of a sphere.
-    double SDF_Fct(const Vec3 &position) const
-    {
+    double SDF_Fct(const Vec3 &position) const {
         // Apply the inverse transformation to the position vector in order to
         // transform the SDF. Calculate the SDF using this inversely transformed
         // position vector.
@@ -152,12 +135,9 @@ public:
 
         // If we want to invert the SDF, we flip the negative region with the
         // positive region. This is done by flipping the sign of the SDF.
-        if (invert_SDF)
-        {
+        if (invert_SDF) {
             return -sdf_value;
-        }
-        else
-        {
+        } else {
             return sdf_value;
         }
     }
