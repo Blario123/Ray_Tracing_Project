@@ -5,6 +5,12 @@
 #include <QGridLayout>
 #include <QLabel>
 
+#include "GUI/BottomPanel.h"
+#include "GUI/FileBar.h"
+#include "GUI/SidePanel.h"
+#include "GUI/StatusBar.h"
+#include "GUI/View.h"
+
 class GUI : public QWidget {
 Q_OBJECT
 public:
