@@ -6,6 +6,7 @@
 #include <fstream> // Allow output to file
 #include <algorithm> // Allow usage of max
 #include <QApplication>
+#include <QStyleFactory>
 
 #include "include/main.h"
 
@@ -271,6 +272,7 @@ int main()
 #else
 
 int main(int argc, char *argv[]) {
+	QApplication::setStyle(QStyleFactory::create("fusion"));
     QApplication a(argc, argv);
     GUI g;
     g.show();

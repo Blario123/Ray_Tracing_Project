@@ -7,7 +7,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 if(WIN32)
-    set(CMAKE_PREFIX_PATH "C:/Qt/6.1.3/mingw81_64/lib/cmake")
+    set(CMAKE_PREFIX_PATH "C:/Qt/6.2.2/mingw_64/lib/cmake")
 else()
     set(CMAKE_PREFIX_PATH ~/Qt/6.2.1/gcc_64)
 endif(WIN32)
@@ -18,11 +18,18 @@ find_package(Qt6 COMPONENTS
         Widgets
         REQUIRED)
 
-include_directories(include)
+include_directories(include GUI/include)
 
 set(CPPSOURCE
         main.cpp
-        GUI.cpp)
+        GUI.cpp
+        GUI/src/BottomPanel.cpp
+        GUI/src/FileBar.cpp
+        GUI/src/ItemTree.cpp
+        GUI/src/SidePanel.cpp
+        GUI/src/StatusBar.cpp
+        GUI/src/View.cpp)
+
 set(HSOURCE
         include/main.h
         include/GUI.h
@@ -34,7 +41,12 @@ set(HSOURCE
         include/SDF.h
         include/stb_image_write.h
         include/Vec3.h
-        include/GUI.h)
+        include/GUI.h
+        GUI/include/BottomPanel.h
+        GUI/include/FileBar.h
+        GUI/include/SidePanel.h
+        GUI/include/StatusBar.h
+        GUI/include/View.h GUI/include/ItemTree.h)
 
 add_executable(${PROJECT_NAME} ${CPPSOURCE} ${HSOURCE})
 
