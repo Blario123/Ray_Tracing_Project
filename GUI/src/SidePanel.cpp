@@ -8,7 +8,7 @@ SidePanel::SidePanel(QWidget *parent) : QWidget(parent),
 										addPushButton(new QPushButton("Add")),
 										delPushButton(new QPushButton("Delete")) {
 	itemTree->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
-	for(int i = 0; i < itemTree->columnCount(); i++) {
+	for (int i = 0; i < itemTree->columnCount(); i++) {
 		itemTree->resizeColumnToContents(i);
 	}
 	
@@ -18,7 +18,6 @@ SidePanel::SidePanel(QWidget *parent) : QWidget(parent),
 	
 	groupBox->setLayout(boxLayout);
 	layout->addWidget(groupBox);
-	
 	
 	
 	connect(addPushButton, &QPushButton::pressed, itemTree, &ItemTree::addPressed);

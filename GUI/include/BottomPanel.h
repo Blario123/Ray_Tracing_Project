@@ -8,8 +8,10 @@
 class BottomPanel : public QWidget {
 Q_OBJECT
 public:
-    explicit BottomPanel(QWidget *parent = nullptr);
-    ~BottomPanel() override = default;
+	explicit BottomPanel(QWidget *parent = nullptr);
+	
+	~BottomPanel() override = default;
+
 private:
 	QBoxLayout *layout;
 	QGroupBox *groupBox;

@@ -27,6 +27,6 @@ GUI::GUI(QWidget *parent) : QWidget(parent),
 	gridLayout->addWidget(fileBar, 0, 0);
 	gridLayout->addWidget(vSplitter, 1, 0);
 	gridLayout->addWidget(statusBar, 2, 0);
-
-    setLayout(gridLayout);
+	
+	setLayout(gridLayout);
 }

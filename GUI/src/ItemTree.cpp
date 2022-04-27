@@ -14,7 +14,7 @@ void ItemTree::delPressed() {
 	takeTopLevelItem(currentIndex().row());
 }
 
-QTreeWidgetItem *ItemTree::createItem(const QString& name) {
+QTreeWidgetItem *ItemTree::createItem(const QString &name) {
 	auto *item = new QTreeWidgetItem(this);
 	auto *cb = new QComboBox;
 	cb->addItems(QStringList() << "Sphere" << "Cube");

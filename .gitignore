@@ -9,3 +9,4 @@ test.cc
 .idea/
 build/
 cmake-build-*/
+/Output/*.m

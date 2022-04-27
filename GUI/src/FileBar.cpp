@@ -14,11 +14,11 @@ FileBar::FileBar(QWidget *parent) : QMenuBar(parent),
 
 void FileBar::save() {
 	QString fileName = QFileDialog::getSaveFileName(this, "Save file.", "", "Portable Network Graphic (*.png);;All Files (*)");
-	if(fileName.isEmpty()) {
+	if (fileName.isEmpty()) {
 		return;
 	} else {
 		QFile file(fileName);
-		if(!file.open(QIODevice::WriteOnly)) {
+		if (!file.open(QIODevice::WriteOnly)) {
 			QMessageBox::information(this, "Unable to open file.", file.errorString());
 			return;
 		}

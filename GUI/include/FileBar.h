@@ -8,8 +8,10 @@
 class FileBar : public QMenuBar {
 Q_OBJECT
 public:
-    explicit FileBar(QWidget *parent = nullptr);
-    ~FileBar() override = default;
+	explicit FileBar(QWidget *parent = nullptr);
+	
+	~FileBar() override = default;
+	
 	QAction *closeAction;
 	QAction *saveAction;
 	QAction *aboutAction;
@@ -17,7 +19,9 @@ private:
 	QMenu *fileMenu;
 	QMenu *aboutMenu;
 public slots:
+	
 	void save();
+
 signals:
 };
 

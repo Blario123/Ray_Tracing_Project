@@ -21,8 +21,10 @@
 class GUI : public QWidget {
 Q_OBJECT
 public:
-    explicit GUI(QWidget *parent = nullptr);
-    ~GUI() override = default;
+	explicit GUI(QWidget *parent = nullptr);
+	
+	~GUI() override = default;
+
 private:
 	QGridLayout *gridLayout;
 	QSplitter *hSplitter;

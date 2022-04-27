@@ -6,11 +6,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-if(WIN32)
+if (WIN32)
     set(CMAKE_PREFIX_PATH "C:/Qt/6.2.2/mingw_64/lib/cmake")
-else()
+else ()
     set(CMAKE_PREFIX_PATH ~/Qt/6.2.1/gcc_64)
-endif(WIN32)
+endif (WIN32)
 
 find_package(Qt6 COMPONENTS
         Core
