@@ -5,111 +5,71 @@
 
 class SceneRender {
 public:
-	// Constructor
 	SceneRender(Observer &observer_) {
-		// Only an observer is required in the construction of a scene
 		observer_pt = std::make_unique<Observer>(observer_);
-		
-		// Get a seed with a random value
+
 		std::random_device random_seed;
-		
-		// Create a uniform distribution between 0 and 1
+
 		generator = std::default_random_engine(random_seed());
 		distribution = std::uniform_real_distribution<double>(0.0, 1.0);
 	}
 	
 	SceneRender(DOFObserver &observer_) {
-		// Only an observer is required in the construction of a scene
 		observer_pt = std::make_unique<DOFObserver>(observer_);
-		
-		// Get a seed with a random value
+
 		std::random_device random_seed;
-		
-		// Create a uniform distribution between 0 and 1
+
 		generator = std::default_random_engine(random_seed());
 		distribution = std::uniform_real_distribution<double>(0.0, 1.0);
 	}
-	
-	// Add objects to the scene via a unique pointer
+
 	void Add_Object(std::unique_ptr<PhysicalObject> &object_upt) {
 		object_pt_vector.push_back(std::move(object_upt));
 	}
-	
-	// The same function as above but now accepting rvalues
+
 	void Add_Object(std::unique_ptr<PhysicalObject> &&object_upt) {
 		object_pt_vector.push_back(std::move(object_upt));
 	}
-	
-	// Add SDF defined objects to the scene via a unique pointer
+
 	void Add_Object(std::unique_ptr<SDF> &object_upt) {
 		sdf_object_pt_vector.push_back(std::move(object_upt));
 	}
-	
-	// The same function as above but now accepting rvalues
+
 	void Add_Object(std::unique_ptr<SDF> &&object_upt) {
 		sdf_object_pt_vector.push_back(std::move(object_upt));
 	}
-	
-	// Random hemisphere vector generator
+
 	Vec3 Hemisphere_Vector_Generator(const Vec3 &normal) {
-		// The random vector is instantiated first
 		Vec3 random_vector;
-		
-		// Keep looping over this algorithm until a suitable vector is found
+
 		while (true) {
-			// The purpose of this algorithm is to generate a normal distribution of
-			// points on a unit hemisphere. The hemisphere we have is such that a
-			// vector from the centre to a point on the hemisphere has a positive dot
-			// product with the argument "normal".
-			// The idea of this algorithm is to generate a point from a uniform
-			// distribution inside a 2x2x2 cube, if it is outside the unit sphere
-			// (diameter 2), discard the point, otherwise map it to the hemisphere by
-			// multiplying the position vector of the point with the appropriate
-			// value.
-			
-			// Set the components of random_vector to random values inside (-1,1)
 			random_vector.x = 2.0 * distribution(generator) - 1.0;
 			random_vector.y = 2.0 * distribution(generator) - 1.0;
 			random_vector.z = 2.0 * distribution(generator) - 1.0;
 			
 			// Find the squared norm
 			double modulus = random_vector.norm2();
-			
-			// Check the random vector is inside the unit sphere but isn't the zero
-			// vector
+
 			if (modulus <= 1.0 && modulus > 0.0) {
-				// Normalise the random vector
 				random_vector.normalise();
-				
-				// Make sure that the random vector is in the hemisphere defined by the
-				// direction of the normal
 				if (dot(random_vector, normal) < 0.0) {
 					random_vector = -random_vector;
 				}
 				break;
 			}
 		}
-		
-		// Return the random vector
 		return random_vector;
-	} // End of Hemisphere_Vector_Generator
-	
-	// Take the union of the multiple SDFs provided, by taking the minimum value
+	}
+
 	double SDF_Fct(const Vec3 &position) const {
-		// Allocate storage for the minimum SDF value and the value of the current
-		// SDF as we loop through them
 		double minimum_distance = 0.0;
 		double current_distance = 0.0;
 		
 		if (sdf_object_pt_vector.size() > 0) {
-			// Set the minimum SDF value equal to the SDF of the first SDF provided
 			minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
 		}
-		
-		// Loop through the rest of the SDFs and find the minimum value of the SDFs
-		// at "position"
+
 		for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++) {
-			// If we find a smaller SDF value, set minimum_distance to that value
 			double current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
 			if (current_distance < minimum_distance) {
 				minimum_distance = current_distance;
@@ -118,32 +78,17 @@ public:
 		
 		return minimum_distance;
 	}
-	
-	// Take the union of the multiple SDFs provided, by taking the minimum value.
-	// The second argument returns the index of the smallest SDF in
-	// sdf_object_pt_vector. The reason for having sdf_intersection_index, is to
-	// allow us to find out which surface light rays are intersecting with so we
-	// can find the appropriate BRDF and Light_Emitted function.
+
 	double SDF_Fct(const Vec3 &position, int &sdf_intersection_index) const {
-		// Allocate storage for the minimum SDF value and the value of the current
-		// SDF as we loop through them
 		double minimum_distance = 0.0;
 		double current_distance = 0.0;
 		
 		if (sdf_object_pt_vector.size() > 0) {
-			// Set the minimum SDF value equal to the SDF of the first SDF provided,
-			// and
-			// set the value of sdf_intersection_index to the index of this first SDF.
 			minimum_distance = sdf_object_pt_vector[0]->SDF_Fct(position);
 			sdf_intersection_index = 0;
 		}
-		
-		// Loop through the rest of the SDFs and find the minimum value of the SDFs
-		// at "position". Also set sdf_intersection_index to the corresponding index
-		// value.
+
 		for (unsigned i = 1; i < sdf_object_pt_vector.size(); i++) {
-			// If we find a smaller SDF value, set minimum_distance and
-			// sdf_intersection_index
 			current_distance = sdf_object_pt_vector[i]->SDF_Fct(position);
 			if (current_distance < minimum_distance) {
 				minimum_distance = current_distance;
@@ -153,100 +98,47 @@ public:
 		
 		return minimum_distance;
 	}
-	
-	// Loop over all the objects in the scene, then all the SDF-defined objects in
-	// the scene to find the first intersection of light_ray with the objects in
-	// the scene. The two int arguments return the index of the closest object
-	// that light_ray intersects with, if either return -1, there has been no
-	// intersection with the non SDF-defined objects in the scene or the
-	// SDF-defined objects in the scene. The argument
-	// threshold_intersection_distance is the distance at which we consider a
-	// light_ray to have intersected with an SDF-defined surface in the scene. The
-	// argument threshold_no_intersection_distance is the distance at which we say
-	// there has been no intersection between light_ray and an SDF-defined
-	// surface.
+
 	Vec3 First_Intersection_Point(
 			const Ray &light_ray,
 			int &object_intersection_index,
 			int &sdf_intersection_index,
 			const double &threshold_intersection_distance,
 			const double &threshold_no_intersection_distance) {
-		// Store the indices of the closest intersection that light_ray intersects
-		// with. Only one of these indices can not be -1 when this function returns
-		// since only one object is the closest object that light_ray intersects
-		// with. (At least for the purposes of coding this up)
 		object_intersection_index = -1;
 		sdf_intersection_index = -1;
-		
-		// Store the SDF value at the origin of light_ray. These two variables are
-		// allocated for use in finding the intersection of light_ray with an SDF.
-		double safe_travel_distance =
-				std::abs(SDF_Fct(light_ray.Get_Initial_Position()));
+
+		double safe_travel_distance = std::abs(SDF_Fct(light_ray.Get_Initial_Position()));
 		double new_safe_travel_distance = safe_travel_distance;
-		
-		// Store the smallest distance from the light ray source to an intersection
-		// along with the index of the corresponding object in object_pt_vector.
+
 		double smallest_distance = 0.0;
-		
-		// Store the distance of the light ray to the intersection with the current
-		// object being looped over.
+
 		double current_distance = 0.0;
 		
 		Vec3 intersection_point(0.0, 0.0, 0.0);
-		
-		// Loop over every object in the scene to find an intersection
+
 		for (unsigned i = 0; i < object_pt_vector.size(); i++) {
-			// If an intersection has already been found, check whether this new
-			// intersection is closer to the light ray source than the previous
-			// closest intersection.
 			if (object_intersection_index != -1) {
-				// Check whether this intersection is closer than the previous closest
-				// one. If so, replace smallest_distance
-				if (object_pt_vector[i]->Intersection_Check(light_ray,
-															current_distance) &&
+				if (object_pt_vector[i]->Intersection_Check(light_ray,current_distance) &&
 					current_distance < smallest_distance) {
 					smallest_distance = current_distance;
 					object_intersection_index = i;
 				}
-			}
-				// If an intersection hasn't been found yet, any intersection will be the
-				// closest intersection so far.
-			else {
-				if (object_pt_vector[i]->Intersection_Check(light_ray,
-															current_distance)) {
-					// This section of code will only be invoked when the first
-					// intersection is found.
+			} else {
+				if (object_pt_vector[i]->Intersection_Check(light_ray,current_distance)) {
 					smallest_distance = current_distance;
 					object_intersection_index = i;
 				}
 			}
 		}
-		
-		// The closest intersection of light_ray with a non-SDF defined surface has
-		// been found above, now we find the closest intersection of light_ray with
-		// an SDF defined surface using the standard iteration method.
-		
-		// This variable keeps track of the distance travelled along the ray from
-		// the origin of light_ray
+
 		double distance_travelled = 0.0;
 		
-		// If the SDF is smaller than the distance to the closest intersection with
-		// a non-SDF defined surface, or the light ray hasn't intersected with a
-		// non-SDF defined surface, we then work on finding the closest intersection
-		// with SDF defined surfaces.
-		
-		if (sdf_object_pt_vector.size() > 0 &&
-			safe_travel_distance < smallest_distance) {
-			// Travel along the light_ray while the light_ray has not intersected with
-			// an SDF, has not gotten too far away from a surface, or has already
-			// passed through a non-SDF defined surface
+		if (sdf_object_pt_vector.size() > 0 && (safe_travel_distance < smallest_distance || object_intersection_index == -1)) {
 			while (safe_travel_distance >= threshold_intersection_distance &&
 				   safe_travel_distance <= threshold_no_intersection_distance &&
 				   (distance_travelled < smallest_distance ||
 					object_intersection_index == -1)) {
-				// Move along the ray by "safe_travel_distance" and evaluate the SDF,
-				// the value of the SDF is the distance we travel in the next iteration,
-				// so we save it as "new_safe_travel_distance"
 				new_safe_travel_distance =
 						std::abs(SDF_Fct(light_ray.Get_Initial_Position() +
 										 (distance_travelled + safe_travel_distance) *
@@ -300,7 +192,18 @@ public:
 		
 	} // End of First_Intersection_Point
 	
-	
+	Radiance Light_Out_Average(const Ray &light_ray, unsigned bounces_remaining,  const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
+        Radiance ray_radiance(0.0, 0.0, 0.0);
+
+        for(unsigned i = 0; i < number_of_random_samples; i++) {
+            ray_radiance += Light_Out(light_ray, bounces_remaining, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
+        }
+
+        ray_radiance /= number_of_random_samples;
+
+        return ray_radiance;
+    }
+
 	Radiance Light_Out(const Ray &light_ray,
 					   unsigned bounces_remaining,
 					   const double &threshold_intersection_distance,
@@ -425,9 +328,7 @@ public:
 		
 		// Create an image of the correct resolution
 		Image image(resolution[0], resolution[1]);
-		
-		// Create storage for the radiance at each pixel
-		Radiance pixel_radiance(0.0, 0.0, 0.0);
+
 		
 		// Initialise variables used for outputting the current progress to the
 		// terminal
@@ -464,34 +365,13 @@ public:
 			
 			// Find the radiance at each pixel and set each pixel to this RGB value
 			for (unsigned j = 0; j < resolution[1]; j++) {
-				// Set the radiance at each pixel to zero before calculating the
-				// radiance
-				pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
-				
-				// Sum up the radiance of multiple light rays "shot out" from the camera
-				// in the direction of this pixel
-				for (unsigned k = 0; k < number_of_random_samples; k++) {
-					pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(i, j),
-												number_of_bounces,
-												threshold_intersection_distance,
-												threshold_no_intersection_distance,
-												finite_difference_size);
-				}
-				
-				// Set the RGB value of this pixel to the average radiance over the
-				// number of light rays shot out
-				image(i, j) = pixel_radiance / number_of_random_samples;
+				image(i, j) = Light_Out_Average(observer_pt->Ray_To_Pixel_XY(i, j), number_of_bounces, number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
 			}
 		}
 		
 		return image;
 	}
-	
-	// This function should be used purely in Render_Image_Multithreaded, when a
-	// thread is created to do this job, it will find the Radiance of pixels in
-	// such a way that it will work in parallel with other threads. The pixel
-	// data calculated by all the threads are used in Render_Image_Multithreaded
-	// to create the whole picture.
+
 	void Render_Image_Per_Thread(std::vector<Radiance> &partition,
 								 const unsigned &number_of_bounces,
 								 const unsigned &number_of_random_samples,
@@ -533,18 +413,11 @@ public:
 			
 			// Take the total radiance for a pixel over number_of_random_samples
 			// light rays
-			for (unsigned i = 0; i < number_of_random_samples; i++) {
-				pixel_radiance +=
-						Light_Out(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-								  number_of_bounces,
-								  threshold_intersection_distance,
-								  threshold_no_intersection_distance,
-								  finite_difference_size);
-			}
+			pixel_radiance = Light_Out_Average(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j), number_of_bounces, number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
 			
 			// Set the RGB value of this pixel to the average radiance over all the
 			// rays traced
-			partition.push_back(pixel_radiance / number_of_random_samples);
+			partition.push_back(pixel_radiance);
 			
 			// Move on to the pixel that is number_of_threads further so that each
 			// thread works on a different pixel
@@ -623,6 +496,17 @@ public:
 		
 		return image;
 	}
+
+    Radiance Light_Out_Russian_Average(const Ray &light_ray, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
+        Radiance ray_radiance(0.0, 0.0, 0.0);
+
+        for(unsigned i = 0; i < number_of_random_samples; i++) {
+            ray_radiance += Light_Out_Russian(light_ray, threshold_intersection_distance, threshold_no_intersection_distance);
+        }
+        ray_radiance /= number_of_random_samples;
+
+        return ray_radiance;
+    }
 	
 	// Calculate the radiance coming from the direction of light_ray using the
 	// Light Transport Equation with Russian Roulette implemented
@@ -742,9 +626,6 @@ public:
 		// Create an image of the correct resolution
 		Image image(resolution[0], resolution[1]);
 		
-		// Create storage for the radiance at each pixel
-		Radiance pixel_radiance(0.0, 0.0, 0.0);
-		
 		// Initialise variables used for outputting the current progress to the
 		// terminal
 		unsigned tenth_percentiles = 0;
@@ -780,25 +661,7 @@ public:
 			
 			// Find the radiance at each pixel and set each pixel to this RGB value
 			for (unsigned j = 0; j < resolution[1]; j++) {
-				// Set the radiance at each pixel to zero before calculating the
-				// radiance
-				pixel_radiance.x = 0.0;
-				pixel_radiance.y = 0.0;
-				pixel_radiance.z = 0.0;
-				
-				// Sum up the radiance of multiple light rays "shot out" from the camera
-				// in the direction of this pixel
-				for (unsigned k = 0; k < number_of_random_samples; k++) {
-					pixel_radiance +=
-							Light_Out_Russian(observer_pt->Ray_To_Pixel_XY(i, j),
-											  threshold_intersection_distance,
-											  threshold_no_intersection_distance,
-											  finite_difference_size);
-				}
-				
-				// Set the RGB value of this pixel to the average radiance over the
-				// number of light rays shot out
-				image(i, j) = pixel_radiance / number_of_random_samples;
+				image(i, j) = Light_Out_Russian_Average(observer_pt->Ray_To_Pixel_XY(i, j), number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
 			}
 		}
 		
@@ -851,17 +714,16 @@ public:
 			
 			// Take the total radiance for a pixel over number_of_random_samples
 			// light rays
-			for (unsigned i = 0; i < number_of_random_samples; i++) {
-				pixel_radiance += Light_Out_Russian(
-						observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-						threshold_intersection_distance,
-						threshold_no_intersection_distance,
-						finite_difference_size);
-			}
+            pixel_radiance = Light_Out_Russian_Average(
+                    observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
+                    number_of_random_samples,
+                    threshold_intersection_distance,
+                    threshold_no_intersection_distance,
+                    finite_difference_size);
 			
 			// Set the RGB value of this pixel to the average radiance over all the
 			// rays traced
-			partition.push_back(pixel_radiance / number_of_random_samples);
+			partition.push_back(pixel_radiance);
 			
 			// Move on to the pixel that is number_of_threads further so that each
 			// thread works on a different pixel

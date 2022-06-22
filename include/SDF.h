@@ -147,4 +147,63 @@ private:
 	double radius;
 };
 
+class TorusSDF : public SDF {
+public:
+  TorusSDF(const double &larger_radius_, const double &smaller_radius_, const bool &invert_SDF_) {
+    larger_radius = larger_radius_;
+    smaller_radius = smaller_radius_;
+    invert_SDF = invert_SDF_;
+  }
+
+  double SDF_Fct(const Vec3 &position) const {
+    Vec3 transformed_position = Inverse_Transformation(position);
+    double distance_to_inner_circle = sqrt(pow(transformed_position.x, 2) + pow(transformed_position.y, 2)) - larger_radius;
+
+    double sdf_value = sqrt(pow(distance_to_inner_circle, 2) + pow(transformed_position.z, 2)) - smaller_radius;
+
+    if (invert_SDF) {
+      return -sdf_value;
+    } else {
+      return sdf_value;
+    }
+  }
+
+private:
+  double larger_radius;
+  double smaller_radius;
+};
+
+class CuboidSDF : public SDF {
+public:
+  CuboidSDF(const Vec3 &vertex_, const bool &invert_SDF_) {
+    vertex.x = std::abs(vertex_.x);
+    vertex.y = std::abs(vertex_.y);
+    vertex.z = std::abs(vertex_.z);
+    invert_SDF = invert_SDF_;
+  }
+
+  double SDF_Fct(const Vec3 &position) const {
+    Vec3 transformed_position = Inverse_Transformation(position);
+
+    Vec3 absolute_position(std::abs(transformed_position.x),std::abs(transformed_position.y),std::abs(transformed_position.z));
+
+    Vec3 vertex_to_absolute_position = absolute_position - vertex;
+
+    double first_term = Vec3(std::max(vertex_to_absolute_position.x, 0.0), std::max(vertex_to_absolute_position.y, 0.0), std::max(vertex_to_absolute_position.z, 0.0)).norm();
+
+    double second_term = std::min(std::max(std::max(vertex_to_absolute_position.x, vertex_to_absolute_position.y), vertex_to_absolute_position.z), 0.0);
+
+    double sdf_value = first_term + second_term;
+
+    if (invert_SDF) {
+      return -sdf_value;
+    } else {
+      return sdf_value;
+    }
+  }
+
+private:
+  Vec3 vertex;
+};
+
 #endif //SDF_H
