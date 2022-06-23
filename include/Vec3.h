@@ -4,7 +4,6 @@
 #include <cmath>
 #include <iostream>
 
-
 class Vec3 {
 public:
 	Vec3(double x_, double y_, double z_) {
@@ -140,6 +139,18 @@ inline Vec3 pow(const Vec3 &a, const double &b) {
 inline std::ostream &operator<<(std::ostream &os, const Vec3 &v) {
 	os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
 	return os;
+}
+
+Vec3 rotate_x_axis(const Vec3 &position, const double &angle) {
+    return {position.x, position.y * cos(angle) - position.z * sin(angle), position.y * sin(angle) + position.z * cos(angle)};
+}
+
+Vec3 rotate_y_axis(const Vec3 &position, const double &angle) {
+    return {position.x * cos(angle) + position.z * sin(angle), position.y, -position.x * sin(angle) + position.z * cos(angle)};
+}
+
+Vec3 rotate_z_axis(const Vec3 &position, const double &angle) {
+    return {position.x * cos(angle) - position.y * sin(angle), position.x * sin(angle) + position.y * cos(angle), position.z};
 }
 
 #endif

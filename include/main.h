@@ -39,20 +39,24 @@ Radiance brown_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, con
     return damping_factor * pi_reciprocal * Radiance(160.0, 82.0, 45.0) / 255.0;
 }
 
+Radiance cyan_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
+    return damping_factor * pi_reciprocal * Radiance(0.0, 255.0, 195.0) / 255.0;
+}
+
 Radiance ceiling_light_emitted(const Vec3 &position) {
 	return {1.0, 1.0, 1.0};
 }
 
-Vec3 rotate_x_axis(const Vec3 &position, const double &angle) {
-    return {position.x, position.y * cos(angle) - position.z * sin(angle), position.y * sin(angle) + position.z * cos(angle)};
+Vec3 move_torus_1(const Vec3 &position) {
+    return rotate_y_axis(rotate_z_axis(position - Vec3(2.0, 0.0, 0.55), pi / 4.0), pi / 2.0);
 }
 
-Vec3 rotate_y_axis(const Vec3 &position, const double &angle) {
-    return {position.x * cos(angle) + position.z * sin(angle), position.y, -position.x * sin(angle) + position.z * cos(angle)};
+Vec3 move_cube(const Vec3 &position) {
+    return position - Vec3(2.0, 0.0, 0.0);
 }
 
-Vec3 rotate_z_axis(const Vec3 &position, const double &angle) {
-    return {position.x * cos(angle) - position.y * sin(angle), position.x * sin(angle) + position.y * cos(angle), position.z};
+Vec3 move_tetra(const Vec3 &position) {
+    return rotate_z_axis(rotate_x_axis(position - Vec3(2.0, 0.0, 0.17), pi / 3.0), pi / 8.0);
 }
 
 

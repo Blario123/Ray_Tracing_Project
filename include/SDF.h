@@ -206,4 +206,59 @@ private:
   Vec3 vertex;
 };
 
+class ReuleauxSDF : public SDF
+{
+public:
+    ReuleauxSDF(const double &side_length_, const bool &invert_SDF_)
+    {
+        side_length = side_length_;
+
+        invert_SDF = invert_SDF_;
+    }
+
+    // Set the SDF function
+    double SDF_Fct(const Vec3 &position) const
+    {
+        // Apply the inverse transformation to position which applies the
+        // transformation to the SDF
+        Vec3 transformed_position = Inverse_Transformation(position);
+
+        double sdf_1 =
+                (transformed_position - side_length * Vec3(0.5, 0.0, -0.5 / sqrt(2.0)))
+                        .norm() -
+                side_length;
+
+        double sdf_2 =
+                (transformed_position - side_length * Vec3(-0.5, 0.0, -0.5 / sqrt(2.0)))
+                        .norm() -
+                side_length;
+
+        double sdf_3 =
+                (transformed_position - side_length * Vec3(0.0, 0.5, 0.5 / sqrt(2.0)))
+                        .norm() -
+                side_length;
+
+        double sdf_4 =
+                (transformed_position - side_length * Vec3(0.0, -0.5, 0.5 / sqrt(2.0)))
+                        .norm() -
+                side_length;
+
+        double sdf_value = std::max(std::max(sdf_1, sdf_2), std::max(sdf_3, sdf_4));
+
+        // If we want to invert the SDF, we flip the negative region with the
+        // positive region. This is done by flipping the sign of the SDF.
+        if (invert_SDF)
+        {
+            return -sdf_value;
+        }
+        else
+        {
+            return sdf_value;
+        }
+    }
+
+private:
+    double side_length;
+};
+
 #endif //SDF_H

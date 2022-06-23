@@ -13,15 +13,6 @@ public:
 		generator = std::default_random_engine(random_seed());
 		distribution = std::uniform_real_distribution<double>(0.0, 1.0);
 	}
-	
-	SceneRender(DOFObserver &observer_) {
-		observer_pt = std::make_unique<DOFObserver>(observer_);
-
-		std::random_device random_seed;
-
-		generator = std::default_random_engine(random_seed());
-		distribution = std::uniform_real_distribution<double>(0.0, 1.0);
-	}
 
 	void Add_Object(std::unique_ptr<PhysicalObject> &object_upt) {
 		object_pt_vector.push_back(std::move(object_upt));
@@ -191,18 +182,6 @@ public:
 		return Vec3(0.0, 0.0, 0.0);
 		
 	} // End of First_Intersection_Point
-	
-	Radiance Light_Out_Average(const Ray &light_ray, unsigned bounces_remaining,  const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
-        Radiance ray_radiance(0.0, 0.0, 0.0);
-
-        for(unsigned i = 0; i < number_of_random_samples; i++) {
-            ray_radiance += Light_Out(light_ray, bounces_remaining, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
-        }
-
-        ray_radiance /= number_of_random_samples;
-
-        return ray_radiance;
-    }
 
 	Radiance Light_Out(const Ray &light_ray,
 					   unsigned bounces_remaining,
@@ -322,6 +301,7 @@ public:
 					   const double &threshold_intersection_distance,
 					   const double &threshold_no_intersection_distance,
 					   const double &finite_difference_size,
+                       const unsigned &supersampling_value,
 					   const bool &silent = false) {
 		// Find the resolution of the observer
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
@@ -329,6 +309,7 @@ public:
 		// Create an image of the correct resolution
 		Image image(resolution[0], resolution[1]);
 
+        Radiance pixel_radiance(0.0, 0.0, 0.0);
 		
 		// Initialise variables used for outputting the current progress to the
 		// terminal
@@ -365,8 +346,15 @@ public:
 			
 			// Find the radiance at each pixel and set each pixel to this RGB value
 			for (unsigned j = 0; j < resolution[1]; j++) {
-				image(i, j) = Light_Out_Average(observer_pt->Ray_To_Pixel_XY(i, j), number_of_bounces, number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
-			}
+			    pixel_radiance = Radiance(0.0, 0.0, 0.0);
+                for(unsigned k = 0; k < number_of_random_samples / (supersampling_value * supersampling_value); k++) {
+                    for(unsigned l = 0; l < supersampling_value * supersampling_value; l++) {
+                        pixel_radiance += Light_Out(observer_pt->Ray_To_Pixel_XY(supersampling_value * i + l % supersampling_value, supersampling_value * j + l / supersampling_value, k / (supersampling_value * supersampling_value), number_of_random_samples / (supersampling_value * supersampling_value), supersampling_value), number_of_bounces, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
+                    }
+                }
+                pixel_radiance /= supersampling_value * supersampling_value;
+                image(i, j) = pixel_radiance / number_of_random_samples;
+            }
 		}
 		
 		return image;
@@ -378,6 +366,7 @@ public:
 								 const double &threshold_intersection_distance,
 								 const double &threshold_no_intersection_distance,
 								 const double &finite_difference_size,
+                                 const unsigned &supersampling_value,
 								 const unsigned &thread_index,
 								 const unsigned &number_of_threads) {
 		// Get the resolution of the image
@@ -401,28 +390,71 @@ public:
 		Radiance pixel_radiance(0.0, 0.0, 0.0);
 		unsigned pixel_index_i = 0;
 		unsigned pixel_index_j = 0;
+
+        unsigned progress = 0;
+        auto start = std::chrono::steady_clock::now();
+        auto previous = std::chrono::steady_clock::now();
+        auto current = std::chrono::steady_clock::now();
+        double slowest_interval = 0.0;
+        double fastest_interval = 0.0;
+        double current_interval = 0.0;
+        double running_time = 0.0;
 		
 		while (pixel_index < number_of_pixels) {
+            if(thread_index == 0) {
+                if(pixel_index * 10 / number_of_pixels > progress) {
+                    progress = pixel_index * 10 / number_of_pixels;
+
+                    current = std::chrono::steady_clock::now();
+
+                    current_interval = std::chrono::duration<double> (current - previous).count();
+
+                    if(progress == 1) {
+                        slowest_interval = current_interval;
+                        fastest_interval = current_interval;
+                    } else if (current_interval > slowest_interval) {
+                        slowest_interval = current_interval;
+                    } else if (current_interval < fastest_interval) {
+                        fastest_interval = current_interval;
+                    }
+
+                    previous = current;
+
+                    std::cout << "ETA: " << unsigned(fastest_interval * (10 - progress)) << "-" << unsigned(slowest_interval * double(10 - progress)) << " seconds." << std::endl;
+                    std::cout << "The first thread is " << progress << "0\% done." << std::endl << std::endl;
+                }
+            }
 			// pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
 			// image, this is calculated from pixel_index and the resolution
 			pixel_index_i = pixel_index % resolution[0];
 			pixel_index_j = pixel_index / resolution[0];
 			
 			// Set the radiance to zero for each pixel before calculating the radiance
-			pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+			pixel_radiance = Radiance(0.0, 0.0, 0.0);
 			
 			// Take the total radiance for a pixel over number_of_random_samples
 			// light rays
-			pixel_radiance = Light_Out_Average(observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j), number_of_bounces, number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
-			
+			for(unsigned i = 0; i < number_of_random_samples / (supersampling_value * supersampling_value); i++) {
+                for(unsigned k = 0; k < supersampling_value * supersampling_value; k++) {
+                    pixel_radiance += Light_Out(
+                            observer_pt->Ray_To_Pixel_XY(supersampling_value * pixel_index_i + k % supersampling_value, supersampling_value * pixel_index_j + k / supersampling_value, i / (supersampling_value * supersampling_value), number_of_random_samples / (supersampling_value * supersampling_value), supersampling_value),
+                            number_of_bounces, threshold_intersection_distance, threshold_no_intersection_distance,
+                            finite_difference_size);
+                }
+            }
+            pixel_radiance /= supersampling_value * supersampling_value;
 			// Set the RGB value of this pixel to the average radiance over all the
 			// rays traced
-			partition.push_back(pixel_radiance);
+			partition.push_back(pixel_radiance / number_of_random_samples);
 			
 			// Move on to the pixel that is number_of_threads further so that each
 			// thread works on a different pixel
 			pixel_index += number_of_threads;
 		}
+        if(thread_index == 0) {
+            running_time = std::chrono::duration<double> (current - start).count();
+            std::cout << "Finished in " << unsigned(running_time) << " seconds." << std::endl;
+        }
 	}
 	
 	
@@ -435,6 +467,7 @@ public:
 			const double &threshold_intersection_distance,
 			const double &threshold_no_intersection_distance,
 			const double &finite_difference_size,
+            const unsigned &supersampling_value,
 			const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
 		// Create a vector of threads
 		std::vector<std::thread> threads;
@@ -459,6 +492,7 @@ public:
 										  threshold_intersection_distance,
 										  threshold_no_intersection_distance,
 										  finite_difference_size,
+                                          supersampling_value,
 										  thread_index,
 										  number_of_threads));
 		}
@@ -474,10 +508,11 @@ public:
 		unsigned pixel_index = 0;
 		unsigned pixel_index_i = 0;
 		unsigned pixel_index_j = 0;
-		
+
 		// Loop over every pixel in image and find the correct value of Radiance
 		// in partitions to assign to this pixel.
 		while (pixel_index < resolution[0] * resolution[1]) {
+
 			// If the rows of pixels from top to bottom of an image were laid end
 			// to end, and the index of a pixel in this "vector" of pixels were given
 			// as pixel_index, find the (i, j)-th index of this pixel in the image.
@@ -496,17 +531,6 @@ public:
 		
 		return image;
 	}
-
-    Radiance Light_Out_Russian_Average(const Ray &light_ray, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
-        Radiance ray_radiance(0.0, 0.0, 0.0);
-
-        for(unsigned i = 0; i < number_of_random_samples; i++) {
-            ray_radiance += Light_Out_Russian(light_ray, threshold_intersection_distance, threshold_no_intersection_distance);
-        }
-        ray_radiance /= number_of_random_samples;
-
-        return ray_radiance;
-    }
 	
 	// Calculate the radiance coming from the direction of light_ray using the
 	// Light Transport Equation with Russian Roulette implemented
@@ -619,12 +643,15 @@ public:
 							   const double &threshold_intersection_distance,
 							   const double &threshold_no_intersection_distance,
 							   const double &finite_difference_size,
+                               const unsigned &supersampling_value,
 							   const bool &silent = false) {
 		// Find the resolution of the observer
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 		
 		// Create an image of the correct resolution
 		Image image(resolution[0], resolution[1]);
+
+        Radiance pixel_radiance(0.0, 0.0, 0.0);
 		
 		// Initialise variables used for outputting the current progress to the
 		// terminal
@@ -661,8 +688,18 @@ public:
 			
 			// Find the radiance at each pixel and set each pixel to this RGB value
 			for (unsigned j = 0; j < resolution[1]; j++) {
-				image(i, j) = Light_Out_Russian_Average(observer_pt->Ray_To_Pixel_XY(i, j), number_of_random_samples, threshold_intersection_distance, threshold_no_intersection_distance, finite_difference_size);
-			}
+			    pixel_radiance = Radiance(0.0, 0.0, 0.0);
+                for(unsigned k = 0; k < number_of_random_samples / (supersampling_value * supersampling_value); k++) {
+                    for (unsigned l = 0; l < supersampling_value * supersampling_value; l++) {
+                        pixel_radiance += Light_Out_Russian(
+                                observer_pt->Ray_To_Pixel_XY(supersampling_value * i + l % supersampling_value, supersampling_value * j + l / supersampling_value, k / (supersampling_value * supersampling_value), number_of_random_samples / (supersampling_value * supersampling_value), supersampling_value),
+                                threshold_intersection_distance, threshold_no_intersection_distance,
+                                finite_difference_size);
+                    }
+                }
+                pixel_radiance /= supersampling_value * supersampling_value;
+                image(i, j) = pixel_radiance / number_of_random_samples;
+            }
 		}
 		
 		return image;
@@ -679,6 +716,7 @@ public:
 			const double &threshold_intersection_distance,
 			const double &threshold_no_intersection_distance,
 			const double &finite_difference_size,
+            const unsigned &supersampling_value,
 			const unsigned &thread_index,
 			const unsigned &number_of_threads) {
 		// Get the resolution of the image
@@ -702,33 +740,85 @@ public:
 		Radiance pixel_radiance(0.0, 0.0, 0.0);
 		unsigned pixel_index_i = 0;
 		unsigned pixel_index_j = 0;
+
+        unsigned progress = 0;
+        auto start = std::chrono::steady_clock::now();
+        auto previous = std::chrono::steady_clock::now();
+        auto current = std::chrono::steady_clock::now();
+        double slowest_interval = 0.0;
+        double fastest_interval = 0.0;
+        double current_interval = 0.0;
+        double running_time = 0.0;
 		
 		while (pixel_index < number_of_pixels) {
+            if (thread_index == 0)
+            {
+                if (pixel_index * 10 / number_of_pixels > progress)
+                {
+                    progress = pixel_index * 10 / number_of_pixels;
+
+                    current = std::chrono::steady_clock::now();
+
+                    // Seconds passed in this interval
+                    current_interval =
+                            std::chrono::duration<double>(current - previous).count();
+
+                    if (progress == 1)
+                    {
+                        slowest_interval = current_interval;
+                        fastest_interval = current_interval;
+                    }
+                    else if (current_interval > slowest_interval)
+                    {
+                        slowest_interval = current_interval;
+                    }
+                    else if (current_interval < fastest_interval)
+                    {
+                        fastest_interval = current_interval;
+                    }
+
+                    previous = current;
+
+                    std::cout << "ETA: " << unsigned(fastest_interval * (10 - progress))
+                              << "-" << unsigned(slowest_interval * double(10 - progress))
+                              << " seconds." << std::endl;
+
+                    std::cout << "The first thread is " << progress << "0\% done."
+                              << std::endl
+                              << std::endl;
+                }
+            }
 			// pixel_index_i and pixel_index_j refer to the (i, j)-th pixel of an
 			// image, this is calculated from pixel_index and the resolution
 			pixel_index_i = pixel_index % resolution[0];
 			pixel_index_j = pixel_index / resolution[0];
 			
 			// Set the radiance to zero for each pixel before calculating the radiance
-			pixel_radiance.x = pixel_radiance.y = pixel_radiance.z = 0.0;
+			pixel_radiance = Radiance(0.0, 0.0, 0.0);
 			
 			// Take the total radiance for a pixel over number_of_random_samples
 			// light rays
-            pixel_radiance = Light_Out_Russian_Average(
-                    observer_pt->Ray_To_Pixel_XY(pixel_index_i, pixel_index_j),
-                    number_of_random_samples,
-                    threshold_intersection_distance,
-                    threshold_no_intersection_distance,
-                    finite_difference_size);
+            for(unsigned i = 0; i < number_of_random_samples / (supersampling_value * supersampling_value); i++) {
+                for (unsigned k = 0; k < supersampling_value * supersampling_value; k++) {
+                    pixel_radiance += Light_Out_Russian(
+                            observer_pt->Ray_To_Pixel_XY(supersampling_value * pixel_index_i + k % supersampling_value, supersampling_value * pixel_index_j + k / supersampling_value, i / (supersampling_value * supersampling_value), number_of_random_samples / (supersampling_value * supersampling_value), supersampling_value),
+                            threshold_intersection_distance, threshold_no_intersection_distance,
+                            finite_difference_size);
+                }
+            }
 			
 			// Set the RGB value of this pixel to the average radiance over all the
 			// rays traced
-			partition.push_back(pixel_radiance);
+			partition.push_back(pixel_radiance / number_of_random_samples);
 			
 			// Move on to the pixel that is number_of_threads further so that each
 			// thread works on a different pixel
 			pixel_index += number_of_threads;
 		}
+        if (thread_index == 0) {
+            running_time = std::chrono::duration<double>(current - start).count();
+            std::cout << "Finished in " << unsigned(running_time) << " seconds." << std::endl;
+        }
 	}
 
 	// This function can take in the number of threads to be utilised while
@@ -739,6 +829,7 @@ public:
 			const double &threshold_intersection_distance,
 			const double &threshold_no_intersection_distance,
 			const double &finite_difference_size,
+            const unsigned &supersampling_value,
 			const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
 		// Create a vector of threads
 		std::vector<std::thread> threads;
@@ -763,6 +854,7 @@ public:
 								threshold_intersection_distance,
 								threshold_no_intersection_distance,
 								finite_difference_size,
+                                supersampling_value,
 								thread_index,
 								number_of_threads));
 		}
