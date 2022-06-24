@@ -5,15 +5,7 @@
 
 class Observer {
 public:
-	Observer(const Vec3 &position_,
-			 const Vec3 &camera_direction_,
-			 const Vec3 &upward_direction_,
-			 const double &horizontal_field_of_view_angle_,
-             const double &focal_distance_,
-             const double &lens_radius_,
-			 const std::vector<unsigned> &resolution_) {
-		// Define the member variables
-		
+	Observer(const Vec3 &position_, const Vec3 &camera_direction_, const Vec3 &upward_direction_, const double &horizontal_field_of_view_angle_, const double &focal_distance_, const double &lens_radius_, const std::vector<unsigned> &resolution_) {
 		// Position of the camera
 		position = position_;
 		

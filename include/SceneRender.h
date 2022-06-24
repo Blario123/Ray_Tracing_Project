@@ -90,12 +90,7 @@ public:
 		return minimum_distance;
 	}
 
-	Vec3 First_Intersection_Point(
-			const Ray &light_ray,
-			int &object_intersection_index,
-			int &sdf_intersection_index,
-			const double &threshold_intersection_distance,
-			const double &threshold_no_intersection_distance) {
+	Vec3 First_Intersection_Point(const Ray &light_ray, int &object_intersection_index, int &sdf_intersection_index, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance) {
 		object_intersection_index = -1;
 		sdf_intersection_index = -1;
 
@@ -183,15 +178,11 @@ public:
 		
 	} // End of First_Intersection_Point
 
-	Radiance Light_Out(const Ray &light_ray,
-					   unsigned bounces_remaining,
-					   const double &threshold_intersection_distance,
-					   const double &threshold_no_intersection_distance,
-					   const double &finite_difference_size) {
+	Radiance Light_Out(const Ray &light_ray, unsigned bounces_remaining, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
 		// If the light ray can't bounce off a single object, no light will reach
 		// the "observer".
 		if (bounces_remaining == 0) {
-			return Radiance(0.0, 0.0, 0.0);
+			return {0.0, 0.0, 0.0};
 		}
 		
 		// Store the radiance that light_ray will "carry"
@@ -218,7 +209,7 @@ public:
 		
 		// If no surface was hit by light_ray, we return zero radiance
 		if (object_intersection_index == -1 && sdf_intersection_index == -1) {
-			return Radiance(0.0, 0.0, 0.0);
+			return {0.0, 0.0, 0.0};
 		}
 		
 		// Past this point, either object_intersection_index or (exclusive or)
@@ -294,15 +285,8 @@ public:
 		
 		return resulting_light;
 	} // End of Light_Out
-	
-	
-	Image Render_Image(const unsigned &number_of_bounces,
-					   const unsigned &number_of_random_samples,
-					   const double &threshold_intersection_distance,
-					   const double &threshold_no_intersection_distance,
-					   const double &finite_difference_size,
-                       const unsigned &supersampling_value,
-					   const bool &silent = false) {
+
+	Image Render_Image(const unsigned &number_of_bounces, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size, const unsigned &supersampling_value, const bool &silent = false) {
 		// Find the resolution of the observer
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 		
@@ -360,15 +344,7 @@ public:
 		return image;
 	}
 
-	void Render_Image_Per_Thread(std::vector<Radiance> &partition,
-								 const unsigned &number_of_bounces,
-								 const unsigned &number_of_random_samples,
-								 const double &threshold_intersection_distance,
-								 const double &threshold_no_intersection_distance,
-								 const double &finite_difference_size,
-                                 const unsigned &supersampling_value,
-								 const unsigned &thread_index,
-								 const unsigned &number_of_threads) {
+	void Render_Image_Per_Thread(std::vector<Vec3> &partition, const unsigned &number_of_bounces, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size, const unsigned &supersampling_value, const unsigned &thread_index, const unsigned &number_of_threads) {
 		// Get the resolution of the image
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 		
@@ -457,18 +433,10 @@ public:
         }
 	}
 	
-	
-	// This function can take in the number of threads to be utilised while
-	// rendering the image. This relies on the function of
-	// Render_Image_Per_Thread.
-	Image Render_Image_Multithreaded(
-			const unsigned &number_of_bounces,
-			const unsigned &number_of_random_samples,
-			const double &threshold_intersection_distance,
-			const double &threshold_no_intersection_distance,
-			const double &finite_difference_size,
-            const unsigned &supersampling_value,
-			const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
+	/* This function can take in the number of threads to be utilised while
+	 rendering the image. This relies on the function of
+	 Render_Image_Per_Thread.*/
+	Image Render_Image_Multithreaded(const unsigned &number_of_bounces, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size, const unsigned &supersampling_value, const unsigned &number_of_threads = std::thread::hardware_concurrency()) {
 		// Create a vector of threads
 		std::vector<std::thread> threads;
 		
@@ -479,7 +447,7 @@ public:
 		Image image(resolution[0], resolution[1]);
 		
 		// Create the vectors of Radiance that each thread will work on
-		std::vector<std::vector<Radiance>> partitions(number_of_threads);
+		std::vector<std::vector<Vec3>> partitions(number_of_threads);
 		
 		for (unsigned thread_index = 0; thread_index < number_of_threads;
 			 thread_index++) {
@@ -532,12 +500,9 @@ public:
 		return image;
 	}
 	
-	// Calculate the radiance coming from the direction of light_ray using the
-	// Light Transport Equation with Russian Roulette implemented
-	Radiance Light_Out_Russian(const Ray &light_ray,
-							   const double &threshold_intersection_distance,
-							   const double &threshold_no_intersection_distance,
-							   const double &finite_difference_size) {
+	/* Calculate the radiance coming from the direction of light_ray using the
+	 Light Transport Equation with Russian Roulette implemented*/
+	Radiance Light_Out_Russian(const Ray &light_ray, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size) {
 		// Store the radiance that light_ray will "carry"
 		Radiance resulting_light(0.0, 0.0, 0.0);
 		
@@ -562,7 +527,7 @@ public:
 		
 		// If no surface was hit by light_ray, we return zero radiance
 		if (object_intersection_index == -1 && sdf_intersection_index == -1) {
-			return Radiance(0.0, 0.0, 0.0);
+			return {0.0, 0.0, 0.0};
 		}
 		
 		// Past this point, either object_intersection_index or (exclusive or)
@@ -638,13 +603,7 @@ public:
 		return resulting_light;
 	} // End of Light_Out_Russian
 	
-	
-	Image Render_Image_Russian(const unsigned &number_of_random_samples,
-							   const double &threshold_intersection_distance,
-							   const double &threshold_no_intersection_distance,
-							   const double &finite_difference_size,
-                               const unsigned &supersampling_value,
-							   const bool &silent = false) {
+	Image Render_Image_Russian(const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size, const unsigned &supersampling_value, const bool &silent = false) {
 		// Find the resolution of the observer
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 		
@@ -705,20 +664,12 @@ public:
 		return image;
 	}
 	
-	// This function should be used purely in Render_Image_Russian_Multithreaded,
-	// when a thread is created to do this job, it will find the Radiance of
-	// pixels in such a way that it will work in parallel with other threads. The
-	// pixel data calculated by all the threads are used in
-	// Render_Image_Russian_Multithreaded to create the whole picture.
-	void Render_Image_Russian_Per_Thread(
-			std::vector<Radiance> &partition,
-			const unsigned &number_of_random_samples,
-			const double &threshold_intersection_distance,
-			const double &threshold_no_intersection_distance,
-			const double &finite_difference_size,
-            const unsigned &supersampling_value,
-			const unsigned &thread_index,
-			const unsigned &number_of_threads) {
+	/* This function should be used purely in Render_Image_Russian_Multithreaded,
+	 when a thread is created to do this job, it will find the Radiance of
+	 pixels in such a way that it will work in parallel with other threads. The
+	 pixel data calculated by all the threads are used in
+	 Render_Image_Russian_Multithreaded to create the whole picture.*/
+	void Render_Image_Russian_Per_Thread(std::vector<Vec3> &partition, const unsigned &number_of_random_samples, const double &threshold_intersection_distance, const double &threshold_no_intersection_distance, const double &finite_difference_size, const unsigned &supersampling_value, const unsigned &thread_index, const unsigned &number_of_threads) {
 		// Get the resolution of the image
 		std::vector<unsigned> resolution = observer_pt->Get_Resolution();
 		
@@ -794,7 +745,7 @@ public:
 			pixel_index_j = pixel_index / resolution[0];
 			
 			// Set the radiance to zero for each pixel before calculating the radiance
-			pixel_radiance = Radiance(0.0, 0.0, 0.0);
+			pixel_radiance.clear();
 			
 			// Take the total radiance for a pixel over number_of_random_samples
 			// light rays
@@ -821,9 +772,9 @@ public:
         }
 	}
 
-	// This function can take in the number of threads to be utilised while
-	// rendering the image. This relies on the function of
-	// Render_Image_Russian_Per_Thread.
+	/* This function can take in the number of threads to be utilised while
+	 rendering the image. This relies on the function of
+	 Render_Image_Russian_Per_Thread.*/
 	Image Render_Image_Russian_Multithreaded(
 			const unsigned &number_of_random_samples,
 			const double &threshold_intersection_distance,
@@ -840,8 +791,8 @@ public:
 		// Create an image of the correct size
 		Image image(resolution[0], resolution[1]);
 		
-		// Create the vectors of Radiance that each thread will work on
-		std::vector<std::vector<Radiance>> partitions(number_of_threads);
+		// Create the vectors of Radiance that e    ach thread will work on
+		std::vector<std::vector<Vec3>> partitions(number_of_threads);
 		
 		for (unsigned thread_index = 0; thread_index < number_of_threads;
 			 thread_index++) {

@@ -72,6 +72,12 @@ public:
 		z /= rhs;
 		return *this;
 	}
+
+    void clear() {
+        x = 0;
+        y = 0;
+        z = 0;
+    }
 	
 	double x, y, z;
 };
@@ -80,38 +86,38 @@ public:
 // VECTOR FUNCTIONS
 // Binary +
 inline Vec3 operator+(const Vec3 &lhs, const Vec3 &rhs) {
-	return Vec3(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z);
+	return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
 }
 
 // Binary -
 inline Vec3 operator-(const Vec3 &lhs, const Vec3 &rhs) {
-	return Vec3(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z);
+	return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z};
 }
 
 
 // Unary -
 inline Vec3 operator-(const Vec3 &rhs) {
-	return Vec3(-rhs.x, -rhs.y, -rhs.z);
+	return {-rhs.x, -rhs.y, -rhs.z};
 }
 
 // Scalar * vector
 inline Vec3 operator*(const double d, const Vec3 &rhs) {
-	return Vec3(d * rhs.x, d * rhs.y, d * rhs.z);
+	return {d * rhs.x, d * rhs.y, d * rhs.z};
 }
 
 // Vector * scalar
 inline Vec3 operator*(const Vec3 &rhs, const double d) {
-	return Vec3(d * rhs.x, d * rhs.y, d * rhs.z);
+	return {d * rhs.x, d * rhs.y, d * rhs.z};
 }
 
 // Componentwise vector product
 inline Vec3 operator*(const Vec3 &lhs, const Vec3 &rhs) {
-	return Vec3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z);
+	return {lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z};
 }
 
 // Vector / scalar
 inline Vec3 operator/(const Vec3 &rhs, const double d) {
-	return Vec3(rhs.x / d, rhs.y / d, rhs.z / d);
+	return {rhs.x / d, rhs.y / d, rhs.z / d};
 }
 
 // Dot product
@@ -121,18 +127,17 @@ inline double dot(const Vec3 &a, const Vec3 &b) {
 
 // Cross product
 inline Vec3 cross(const Vec3 &a, const Vec3 &b) {
-	return Vec3(
-			a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+	return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
 // Raise elements to a power (integer exponent)
 inline Vec3 pow(const Vec3 &a, const int &b) {
-	return Vec3(pow(a.x, b), pow(a.y, b), pow(a.z, b));
+	return {pow(a.x, b), pow(a.y, b), pow(a.z, b)};
 }
 
 // Raise elements to a power (double exponent)
 inline Vec3 pow(const Vec3 &a, const double &b) {
-	return Vec3(pow(a.x, b), pow(a.y, b), pow(a.z, b));
+	return {pow(a.x, b), pow(a.y, b), pow(a.z, b)};
 }
 
 // ostream output
