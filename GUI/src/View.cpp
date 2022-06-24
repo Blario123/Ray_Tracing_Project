@@ -1,8 +1,8 @@
 #include "View.h"
 
 View::View(QWidget *parent) : QWidget(parent) {
-	setMinimumSize(100, 100);
-	QPalette palette = QPalette(Qt::red);
+	setMinimumSize(1024, 720);
+	QPalette palette = QPalette(Qt::black);
 	setAutoFillBackground(true);
 	setPalette(palette);
 }
