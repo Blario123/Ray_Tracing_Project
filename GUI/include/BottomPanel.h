@@ -24,6 +24,8 @@ private:
     QGridLayout *cameraLayout;
     QWidget *renderTab;
     QGridLayout *renderLayout;
+    QWidget *structureTab;
+    QGridLayout *structureLayout;
     // Camera Tab
     QLabel *cameraCameraPositionLabel;
     QDoubleSpinBox *cameraCameraXPositionSpinBox;
@@ -63,6 +65,22 @@ private:
     QCheckBox *renderIsSilentCheckBox;
     QLabel *renderRenderModeLabel;
     QComboBox *renderRenderModeComboBox;
+    // Structure Tab
+    QStringList brdfList;
+    QLabel *structureFloorBRDFLabel;
+    QComboBox *structureFloorBRDFComboBox;
+    QLabel *structureCeilingBRDFLabel;
+    QComboBox *structureCeilingBRDFComboBox;
+    QLabel *structureLeftBRDFLabel;
+    QComboBox *structureLeftBRDFComboBox;
+    QLabel *structureRightBRDFLabel;
+    QComboBox *structureRightBRDFComboBox;
+    QLabel *structureBackBRDFLabel;
+    QComboBox *structureBackBRDFComboBox;
+    QLabel *structureSphere1BRDFLabel;
+    QComboBox *structureSphere1BRDFComboBox;
+    QLabel *structureSphere2BRDFLabel;
+    QComboBox *structureSphere2BRDFComboBox;
 };
 
 #endif //BOTTOMPANEL_H
