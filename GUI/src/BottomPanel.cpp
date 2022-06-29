@@ -11,6 +11,8 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             renderLayout(new QGridLayout),
                                             structureTab(new QWidget),
                                             structureLayout(new QGridLayout),
+                                            brdfTab(new QWidget),
+                                            brdfLayout(new QGridLayout),
                                             cameraCameraPositionLabel(new QLabel("Camera position")),
                                             cameraCameraXPositionSpinBox(new QDoubleSpinBox),
                                             cameraCameraYPositionSpinBox(new QDoubleSpinBox),
@@ -48,6 +50,7 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             renderIsSilentCheckBox(new QCheckBox),
                                             renderRenderModeLabel(new QLabel("Render mode")),
                                             renderRenderModeComboBox(new QComboBox),
+                                            renderRenderPushButton(new QPushButton("Render")),
                                             structureFloorBRDFLabel(new QLabel("Floor")),
                                             structureFloorBRDFComboBox(new QComboBox),
                                             structureCeilingBRDFLabel(new QLabel("Ceiling")),
@@ -57,25 +60,12 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             structureRightBRDFLabel(new QLabel("Right")),
                                             structureRightBRDFComboBox(new QComboBox),
                                             structureBackBRDFLabel(new QLabel("Back")),
-                                            structureBackBRDFComboBox(new QComboBox) {
+                                            structureBackBRDFComboBox(new QComboBox),
+                                            brdfTreeWidget(new BRDFItemTree),
+                                            brdfAddBRDFPushButton(new QPushButton("Add")),
+                                            brdfDelBRDFPushButton(new QPushButton("Del")) {
     brdfList << "Red" << "Blue" << "White" << "Pink" << "Purple" << "Yellow" << "Brown" << "Cyan";
-
-    cameraCameraPositionLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-    cameraCameraDirectionLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    cameraUpwardDirectionLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    cameraHzFOVAngleLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    cameraFocalDistanceLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    cameraLensRadiusLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    cameraResolutionLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-
-    renderNBouncesLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderNRandomSamplesLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderThresholdIntersectionDistanceLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderThresholdNoIntersectionDistanceLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderFiniteDifferenceSizeLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderSupersamplingValueLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderIsSilentLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
-    renderRenderModeLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
+    brdfTreeWidget->setFixedHeight(100);
 
     renderRenderModeComboBox->addItems(QStringList() << "RenderImage" << "RenderImagePerThread" << "RenderImageMultithreaded" << "RenderImageRussian" << "RenderImageRussianPerThread" << "RenderImageRussianMultithreaded");
 
@@ -89,6 +79,19 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     structureRightBRDFComboBox->setCurrentIndex(1);
     structureBackBRDFComboBox->addItems(brdfList);
     structureBackBRDFComboBox->setCurrentIndex(2);
+
+    renderNBouncesSpinBox->setValue(10);
+    renderNRandomSamplesSpinBox->setValue(10);
+    renderThresholdIntersectionDistanceSpinBox->setRange(0, 1);
+    renderThresholdIntersectionDistanceSpinBox->setDecimals(9);
+    renderThresholdIntersectionDistanceSpinBox->setValue(1.0e-8);
+    renderThresholdNoIntersectionDistanceSpinBox->setRange(0, 200);
+    renderThresholdNoIntersectionDistanceSpinBox->setDecimals(3);
+    renderThresholdNoIntersectionDistanceSpinBox->setValue(100.0);
+    renderFiniteDifferenceSizeSpinBox->setRange(0, 1);
+    renderFiniteDifferenceSizeSpinBox->setDecimals(9);
+    renderFiniteDifferenceSizeSpinBox->setValue(1.0e-8);
+
 
     cameraLayout->addWidget(cameraCameraPositionLabel, 0, 0);
     cameraLayout->addWidget(cameraCameraXPositionSpinBox, 1, 0);
@@ -124,10 +127,15 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     renderLayout->addWidget(renderFiniteDifferenceSizeSpinBox, 1, 2);
     renderLayout->addWidget(renderSupersamplingValueLabel, 2, 2);
     renderLayout->addWidget(renderSupersamplingValueSpinBox, 3, 2);
-    renderLayout->addWidget(renderRenderModeLabel, 0, 3);
-    renderLayout->addWidget(renderRenderModeComboBox, 1, 3);
-    renderLayout->addWidget(renderIsSilentLabel, 2, 3);
+    renderLayout->addWidget(renderRenderModeLabel, 0, 3, 1, 2);
+    renderLayout->addWidget(renderRenderModeComboBox, 1, 3, 1, 2);
+    renderLayout->addWidget(renderIsSilentLabel, 2, 3, 1, 2);
     renderLayout->addWidget(renderIsSilentCheckBox, 3, 3);
+    renderLayout->addWidget(renderRenderPushButton, 3, 4);
+
+    brdfLayout->addWidget(brdfTreeWidget, 0, 0, 1, 2);
+    brdfLayout->addWidget(brdfAddBRDFPushButton, 1, 0);
+    brdfLayout->addWidget(brdfDelBRDFPushButton, 1, 1);
 
     structureLayout->addWidget(structureFloorBRDFLabel, 0, 0);
     structureLayout->addWidget(structureFloorBRDFComboBox, 1, 0);
@@ -142,11 +150,13 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
 
     cameraTab->setLayout(cameraLayout);
     renderTab->setLayout(renderLayout);
+    brdfTab->setLayout(brdfLayout);
     structureTab->setLayout(structureLayout);
 
     tabWidget->addTab(cameraTab, "Camera");
-    tabWidget->addTab(renderTab, "Render");
     tabWidget->addTab(structureTab, "Structure");
+    tabWidget->addTab(brdfTab, "BRDF");
+    tabWidget->addTab(renderTab, "Render");
 
 	groupBoxLayout->addWidget(tabWidget);
     groupBox->setLayout(groupBoxLayout);
@@ -155,4 +165,11 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
 
     layout->addWidget(groupBox);
 	setLayout(layout);
+
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    connect(renderRenderPushButton, &QPushButton::pressed, this, &BottomPanel::onRenderPushButtonPressed);
+}
+
+void BottomPanel::onRenderPushButtonPressed() {
+
 }

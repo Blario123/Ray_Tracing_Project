@@ -9,6 +9,9 @@
 #include <QLabel>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QPushButton>
+
+#include "BRDFItemTree.h"
 
 class BottomPanel : public QWidget {
 Q_OBJECT
@@ -26,6 +29,8 @@ private:
     QGridLayout *renderLayout;
     QWidget *structureTab;
     QGridLayout *structureLayout;
+    QWidget *brdfTab;
+    QGridLayout *brdfLayout;
     // Camera Tab
     QLabel *cameraCameraPositionLabel;
     QDoubleSpinBox *cameraCameraXPositionSpinBox;
@@ -65,6 +70,7 @@ private:
     QCheckBox *renderIsSilentCheckBox;
     QLabel *renderRenderModeLabel;
     QComboBox *renderRenderModeComboBox;
+    QPushButton *renderRenderPushButton;
     // Structure Tab
     QStringList brdfList;
     QLabel *structureFloorBRDFLabel;
@@ -81,6 +87,12 @@ private:
     QComboBox *structureSphere1BRDFComboBox;
     QLabel *structureSphere2BRDFLabel;
     QComboBox *structureSphere2BRDFComboBox;
+    // BRDF Tab
+    BRDFItemTree *brdfTreeWidget;
+    QPushButton *brdfAddBRDFPushButton;
+    QPushButton *brdfDelBRDFPushButton;
+public slots:
+    void onRenderPushButtonPressed();
 };
 
 #endif //BOTTOMPANEL_H

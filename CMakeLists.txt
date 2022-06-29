@@ -28,6 +28,7 @@ set(CPPSOURCE
         GUI/src/ItemTree.cpp
         GUI/src/SidePanel.cpp
         GUI/src/StatusBar.cpp
+        GUI/src/BRDFItemTree.cpp
         GUI/src/View.cpp)
 
 set(HSOURCE
@@ -46,6 +47,7 @@ set(HSOURCE
         GUI/include/FileBar.h
         GUI/include/SidePanel.h
         GUI/include/StatusBar.h
+        GUI/include/BRDFItemTree.h
         GUI/include/View.h GUI/include/ItemTree.h)
 
 add_executable(${PROJECT_NAME} ${CPPSOURCE} ${HSOURCE})
