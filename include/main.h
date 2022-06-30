@@ -1,14 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "Ray.h"
-#include "Image.h"
 #include "Vec3.h"
-#include "Observer.h"
-#include "PhysicalObject.h"
 #include "RayTracingProject.h"
-#include "SceneRender.h"
-#include "SDF.h"
 #include "GUI.h"
 
 Radiance red_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
@@ -45,18 +39,6 @@ Radiance cyan_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, cons
 
 Radiance ceiling_light_emitted(const Vec3 &position) {
 	return {1.0, 1.0, 1.0};
-}
-
-Vec3 move_torus_1(const Vec3 &position) {
-    return rotate_y_axis(rotate_z_axis(position - Vec3(2.0, 0.0, 0.55), pi / 4.0), pi / 2.0);
-}
-
-Vec3 move_cube(const Vec3 &position) {
-    return position - Vec3(2.0, 0.0, 0.0);
-}
-
-Vec3 move_tetra(const Vec3 &position) {
-    return rotate_z_axis(rotate_x_axis(position - Vec3(2.0, 0.0, 0.17), pi / 3.0), pi / 8.0);
 }
 
 

@@ -2,6 +2,8 @@
 #define OBSERVER_H
 
 #include "RayTracingProject.h"
+#include "Ray.h"
+#include <random>
 
 class Observer {
 public:

@@ -10,3 +10,4 @@ test.cc
 build/
 cmake-build-*/
 /Output/*.m
+*.user

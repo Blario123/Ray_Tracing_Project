@@ -9,6 +9,9 @@ public:
 	explicit View(QWidget *parent = nullptr);
 	
 	~View() override = default;
+    void resizeEvent(QResizeEvent *) override;
+signals:
+    void sizeChanged(int, int);
 };
 
 #endif //VIEW_H

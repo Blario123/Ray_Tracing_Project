@@ -13,6 +13,7 @@ GUI::GUI(QWidget *parent) : QWidget(parent),
 	connect(fileBar->closeAction, &QAction::triggered, this, &QWidget::close);
 	connect(fileBar->aboutAction, &QAction::triggered, this, &QApplication::aboutQt);
 	connect(fileBar->saveAction, &QAction::triggered, fileBar, &FileBar::save);
+    connect(view, &View::sizeChanged, bottomPanel, &BottomPanel::onViewSizeChanged);
 	
 	hSplitter->addWidget(view);
 	hSplitter->addWidget(sidePanel);

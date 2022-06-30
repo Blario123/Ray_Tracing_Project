@@ -13,6 +13,8 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             structureLayout(new QGridLayout),
                                             brdfTab(new QWidget),
                                             brdfLayout(new QGridLayout),
+                                            viewWidth(0),
+                                            viewHeight(0),
                                             cameraCameraPositionLabel(new QLabel("Camera position")),
                                             cameraCameraXPositionSpinBox(new QDoubleSpinBox),
                                             cameraCameraYPositionSpinBox(new QDoubleSpinBox),
@@ -34,6 +36,8 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             cameraResolutionLabel(new QLabel("Camera resolution")),
                                             cameraXResolutionSpinBox(new QSpinBox),
                                             cameraYResolutionSpinBox(new QSpinBox),
+                                            cameraFollowResolutionLabel(new QLabel("Follow resolution?")),
+                                            cameraFollowResolutionCheckBox(new QCheckBox),
                                             renderNBouncesLabel(new QLabel("Number of bounces")),
                                             renderNBouncesSpinBox(new QSpinBox),
                                             renderNRandomSamplesLabel(new QLabel("Number of random samples")),
@@ -64,6 +68,23 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             brdfTreeWidget(new BRDFItemTree),
                                             brdfAddBRDFPushButton(new QPushButton("Add")),
                                             brdfDelBRDFPushButton(new QPushButton("Del")) {
+    cameraCameraXPositionSpinBox->setValue(0.0);
+    cameraCameraYPositionSpinBox->setValue(0.0);
+    cameraCameraZPositionSpinBox->setValue(1.0);
+    cameraCameraXDirectionSpinBox->setValue(1.0);
+    cameraCameraYDirectionSpinBox->setValue(0.0);
+    cameraCameraZDirectionSpinBox->setValue(0.0);
+    cameraUpwardXDirectionSpinBox->setValue(0.0);
+    cameraUpwardYDirectionSpinBox->setValue(0.0);
+    cameraUpwardZDirectionSpinBox->setValue(1.0);
+    cameraHzFOVAngleSpinBox->setValue(pi / 2.5);
+    cameraFocalDistanceSpinBox->setValue(2.0);
+    cameraLensRadiusSpinBox->setValue(0.0);
+    cameraXResolutionSpinBox->setRange(1, 10000);
+    cameraXResolutionSpinBox->setValue(800);
+    cameraYResolutionSpinBox->setRange(1, 10000);
+    cameraYResolutionSpinBox->setValue(400);
+
     brdfList << "Red" << "Blue" << "White" << "Pink" << "Purple" << "Yellow" << "Brown" << "Cyan";
     brdfTreeWidget->setFixedHeight(100);
 
@@ -92,7 +113,6 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     renderFiniteDifferenceSizeSpinBox->setDecimals(9);
     renderFiniteDifferenceSizeSpinBox->setValue(1.0e-8);
 
-
     cameraLayout->addWidget(cameraCameraPositionLabel, 0, 0);
     cameraLayout->addWidget(cameraCameraXPositionSpinBox, 1, 0);
     cameraLayout->addWidget(cameraCameraYPositionSpinBox, 2, 0);
@@ -111,9 +131,11 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     cameraLayout->addWidget(cameraFocalDistanceSpinBox, 1, 4);
     cameraLayout->addWidget(cameraLensRadiusLabel, 2, 4);
     cameraLayout->addWidget(cameraLensRadiusSpinBox, 3, 4);
-    cameraLayout->addWidget(cameraResolutionLabel, 0, 5);
-    cameraLayout->addWidget(cameraXResolutionSpinBox, 1, 5);
-    cameraLayout->addWidget(cameraYResolutionSpinBox, 2, 5);
+    cameraLayout->addWidget(cameraResolutionLabel, 0, 5, 1, 2);
+    cameraLayout->addWidget(cameraXResolutionSpinBox, 1, 5, 1, 2);
+    cameraLayout->addWidget(cameraYResolutionSpinBox, 2, 5, 1, 2);
+    cameraLayout->addWidget(cameraFollowResolutionLabel, 3, 5);
+    cameraLayout->addWidget(cameraFollowResolutionCheckBox, 3, 6);
 
     renderLayout->addWidget(renderNBouncesLabel, 0, 0);
     renderLayout->addWidget(renderNBouncesSpinBox, 1, 0);
@@ -168,8 +190,20 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
 
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     connect(renderRenderPushButton, &QPushButton::pressed, this, &BottomPanel::onRenderPushButtonPressed);
+    connect(cameraFollowResolutionCheckBox, &QCheckBox::toggled, this, &BottomPanel::toggleFollowResolution);
 }
 
 void BottomPanel::onRenderPushButtonPressed() {
 
+}
+
+void BottomPanel::onViewSizeChanged(int w, int h) {
+    if(followResolution) {
+        cameraXResolutionSpinBox->setValue(w);
+        cameraYResolutionSpinBox->setValue(h);
+    }
+}
+
+void BottomPanel::toggleFollowResolution(bool state) {
+    followResolution = state;
 }

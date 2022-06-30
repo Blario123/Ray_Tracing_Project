@@ -11,6 +11,7 @@
 #include <QComboBox>
 #include <QPushButton>
 
+#include "BRDF.h"
 #include "BRDFItemTree.h"
 
 class BottomPanel : public QWidget {
@@ -31,6 +32,7 @@ private:
     QGridLayout *structureLayout;
     QWidget *brdfTab;
     QGridLayout *brdfLayout;
+    int viewWidth, viewHeight;
     // Camera Tab
     QLabel *cameraCameraPositionLabel;
     QDoubleSpinBox *cameraCameraXPositionSpinBox;
@@ -53,6 +55,8 @@ private:
     QLabel *cameraResolutionLabel;
     QSpinBox *cameraXResolutionSpinBox;
     QSpinBox *cameraYResolutionSpinBox;
+    QLabel *cameraFollowResolutionLabel;
+    QCheckBox *cameraFollowResolutionCheckBox;
     // Render Tab
     QLabel *renderNBouncesLabel;
     QSpinBox *renderNBouncesSpinBox;
@@ -91,8 +95,11 @@ private:
     BRDFItemTree *brdfTreeWidget;
     QPushButton *brdfAddBRDFPushButton;
     QPushButton *brdfDelBRDFPushButton;
+    bool followResolution = false;
 public slots:
     void onRenderPushButtonPressed();
+    void onViewSizeChanged(int,int);
+    void toggleFollowResolution(bool);
 };
 
 #endif //BOTTOMPANEL_H

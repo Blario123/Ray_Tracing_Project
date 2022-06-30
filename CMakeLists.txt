@@ -43,6 +43,7 @@ set(HSOURCE
         include/stb_image_write.h
         include/Vec3.h
         include/GUI.h
+        include/BRDF.h
         GUI/include/BottomPanel.h
         GUI/include/FileBar.h
         GUI/include/SidePanel.h
