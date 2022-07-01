@@ -45,6 +45,7 @@ set(HSOURCE
         include/GUI.h
         include/BRDF.h
         GUI/include/BottomPanel.h
+        GUI/include/BRDFItemDialog.h
         GUI/include/FileBar.h
         GUI/include/SidePanel.h
         GUI/include/StatusBar.h

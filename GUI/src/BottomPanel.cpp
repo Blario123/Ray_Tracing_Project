@@ -85,20 +85,32 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     cameraYResolutionSpinBox->setRange(1, 10000);
     cameraYResolutionSpinBox->setValue(400);
 
-    brdfList << "Red" << "Blue" << "White" << "Pink" << "Purple" << "Yellow" << "Brown" << "Cyan";
+    QList<BRDF> brdfList;
+
+    brdfList << red << blue << white << pink << purple << yellow << brown << cyan;
+
+    brdfTreeWidget->setList(brdfList);
+
+    QStringList brdfNameList;
+    QList<BRDF>::iterator i;
+
+    for(i = brdfList.begin(); i != brdfList.end(); i++) {
+        brdfNameList << i->name();
+    }
+
     brdfTreeWidget->setFixedHeight(100);
 
     renderRenderModeComboBox->addItems(QStringList() << "RenderImage" << "RenderImagePerThread" << "RenderImageMultithreaded" << "RenderImageRussian" << "RenderImageRussianPerThread" << "RenderImageRussianMultithreaded");
 
-    structureFloorBRDFComboBox->addItems(brdfList);
+    structureFloorBRDFComboBox->addItems(brdfNameList);
     structureFloorBRDFComboBox->setCurrentIndex(2);
-    structureCeilingBRDFComboBox->addItems(brdfList);
+    structureCeilingBRDFComboBox->addItems(brdfNameList);
     structureCeilingBRDFComboBox->setCurrentIndex(2);
-    structureLeftBRDFComboBox->addItems(brdfList);
+    structureLeftBRDFComboBox->addItems(brdfNameList);
     structureLeftBRDFComboBox->setCurrentIndex(0);
-    structureRightBRDFComboBox->addItems(brdfList);
+    structureRightBRDFComboBox->addItems(brdfNameList);
     structureRightBRDFComboBox->setCurrentIndex(1);
-    structureBackBRDFComboBox->addItems(brdfList);
+    structureBackBRDFComboBox->addItems(brdfNameList);
     structureBackBRDFComboBox->setCurrentIndex(2);
 
     renderNBouncesSpinBox->setValue(10);
@@ -171,9 +183,9 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     structureLayout->addWidget(structureBackBRDFComboBox, 1, 2);
 
     cameraTab->setLayout(cameraLayout);
-    renderTab->setLayout(renderLayout);
-    brdfTab->setLayout(brdfLayout);
     structureTab->setLayout(structureLayout);
+    brdfTab->setLayout(brdfLayout);
+    renderTab->setLayout(renderLayout);
 
     tabWidget->addTab(cameraTab, "Camera");
     tabWidget->addTab(structureTab, "Structure");
@@ -189,8 +201,11 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
 	setLayout(layout);
 
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
     connect(renderRenderPushButton, &QPushButton::pressed, this, &BottomPanel::onRenderPushButtonPressed);
     connect(cameraFollowResolutionCheckBox, &QCheckBox::toggled, this, &BottomPanel::toggleFollowResolution);
+    connect(brdfAddBRDFPushButton, &QPushButton::pressed, this, &BottomPanel::onAddPushButtonPressed);
+    connect(brdfItemDialog, &BRDFItemDialog::itemAdded, brdfTreeWidget, &BRDFItemTree::addItem);
 }
 
 void BottomPanel::onRenderPushButtonPressed() {
@@ -206,4 +221,9 @@ void BottomPanel::onViewSizeChanged(int w, int h) {
 
 void BottomPanel::toggleFollowResolution(bool state) {
     followResolution = state;
+}
+
+void BottomPanel::onAddPushButtonPressed() {
+    brdfItemDialog = new BRDFItemDialog;
+    brdfItemDialog->show();
 }

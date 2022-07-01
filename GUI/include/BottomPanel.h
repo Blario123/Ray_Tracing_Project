@@ -10,9 +10,11 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QPushButton>
+#include <QTreeWidgetItem>
 
 #include "BRDF.h"
 #include "BRDFItemTree.h"
+#include "BRDFItemDialog.h"
 
 class BottomPanel : public QWidget {
 Q_OBJECT
@@ -76,7 +78,6 @@ private:
     QComboBox *renderRenderModeComboBox;
     QPushButton *renderRenderPushButton;
     // Structure Tab
-    QStringList brdfList;
     QLabel *structureFloorBRDFLabel;
     QComboBox *structureFloorBRDFComboBox;
     QLabel *structureCeilingBRDFLabel;
@@ -96,10 +97,12 @@ private:
     QPushButton *brdfAddBRDFPushButton;
     QPushButton *brdfDelBRDFPushButton;
     bool followResolution = false;
+    BRDFItemDialog *brdfItemDialog;
 public slots:
     void onRenderPushButtonPressed();
     void onViewSizeChanged(int,int);
     void toggleFollowResolution(bool);
+    void onAddPushButtonPressed();
 };
 
 #endif //BOTTOMPANEL_H

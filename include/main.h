@@ -5,41 +5,8 @@
 #include "RayTracingProject.h"
 #include "GUI.h"
 
-Radiance red_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-	return damping_factor * pi_reciprocal * Radiance(1.0, 0.2, 0.2);
-}
-
-Radiance blue_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-	return damping_factor * pi_reciprocal * Radiance(0.2, 0.2, 1.0);
-}
-
-Radiance white_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-	return damping_factor * pi_reciprocal * Radiance(1.0, 1.0, 1.0);
-}
-
-Radiance pink_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-	return damping_factor * pi_reciprocal * Radiance(1.0, 0.2, 1.0);
-}
-
-Radiance purple_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-	return damping_factor * pi_reciprocal * Radiance(191.0, 64.0, 191.0) / 255.0;
-}
-
-Radiance yellow_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-    return damping_factor * pi_reciprocal * Radiance(1.0, 1.0, 0.0);
-}
-
-Radiance brown_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-    return damping_factor * pi_reciprocal * Radiance(160.0, 82.0, 45.0) / 255.0;
-}
-
-Radiance cyan_BRDF(const Vec3 &position, const Vec3 &incident_light_vector, const Vec3 &outgoing_light_vector) {
-    return damping_factor * pi_reciprocal * Radiance(0.0, 255.0, 195.0) / 255.0;
-}
-
 Radiance ceiling_light_emitted(const Vec3 &position) {
 	return {1.0, 1.0, 1.0};
 }
-
 
 #endif //MAIN_H
