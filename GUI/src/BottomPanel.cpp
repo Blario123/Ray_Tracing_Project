@@ -36,7 +36,7 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             cameraResolutionLabel(new QLabel("Camera resolution")),
                                             cameraXResolutionSpinBox(new QSpinBox),
                                             cameraYResolutionSpinBox(new QSpinBox),
-                                            cameraFollowResolutionLabel(new QLabel("Follow resolution?")),
+                                            cameraFollowResolutionLabel(new QLabel("Use window resolution?")),
                                             cameraFollowResolutionCheckBox(new QCheckBox),
                                             renderNBouncesLabel(new QLabel("Number of bounces")),
                                             renderNBouncesSpinBox(new QSpinBox),
@@ -67,7 +67,11 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
                                             structureBackBRDFComboBox(new QComboBox),
                                             brdfTreeWidget(new BRDFItemTree),
                                             brdfAddBRDFPushButton(new QPushButton("Add")),
-                                            brdfDelBRDFPushButton(new QPushButton("Del")) {
+                                            brdfDelBRDFPushButton(new QPushButton("Del")),
+                                            brdfItemDialog(nullptr) {
+    viewWidth = screen()->size().width() / 2;
+    viewHeight = screen()->size().height() / 2;
+
     cameraCameraXPositionSpinBox->setValue(0.0);
     cameraCameraYPositionSpinBox->setValue(0.0);
     cameraCameraZPositionSpinBox->setValue(1.0);
@@ -81,24 +85,16 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     cameraFocalDistanceSpinBox->setValue(2.0);
     cameraLensRadiusSpinBox->setValue(0.0);
     cameraXResolutionSpinBox->setRange(1, 10000);
-    cameraXResolutionSpinBox->setValue(800);
+    cameraXResolutionSpinBox->setValue(viewWidth);
     cameraYResolutionSpinBox->setRange(1, 10000);
-    cameraYResolutionSpinBox->setValue(400);
-
-    QList<BRDF> brdfList;
+    cameraYResolutionSpinBox->setValue(viewHeight);
 
     brdfList << red << blue << white << pink << purple << yellow << brown << cyan;
 
     brdfTreeWidget->setList(brdfList);
-
-    QStringList brdfNameList;
-    QList<BRDF>::iterator i;
-
-    for(i = brdfList.begin(); i != brdfList.end(); i++) {
-        brdfNameList << i->name();
-    }
-
     brdfTreeWidget->setFixedHeight(100);
+
+    updateList();
 
     renderRenderModeComboBox->addItems(QStringList() << "RenderImage" << "RenderImagePerThread" << "RenderImageMultithreaded" << "RenderImageRussian" << "RenderImageRussianPerThread" << "RenderImageRussianMultithreaded");
 
@@ -205,7 +201,8 @@ BottomPanel::BottomPanel(QWidget *parent) : QWidget(parent),
     connect(renderRenderPushButton, &QPushButton::pressed, this, &BottomPanel::onRenderPushButtonPressed);
     connect(cameraFollowResolutionCheckBox, &QCheckBox::toggled, this, &BottomPanel::toggleFollowResolution);
     connect(brdfAddBRDFPushButton, &QPushButton::pressed, this, &BottomPanel::onAddPushButtonPressed);
-    connect(brdfItemDialog, &BRDFItemDialog::itemAdded, brdfTreeWidget, &BRDFItemTree::addItem);
+    connect(brdfDelBRDFPushButton, &QPushButton::pressed, brdfTreeWidget, &BRDFItemTree::delItem);
+    connect(brdfTreeWidget, &BRDFItemTree::deleteAt, this, &BottomPanel::delItem);
 }
 
 void BottomPanel::onRenderPushButtonPressed() {
@@ -225,5 +222,33 @@ void BottomPanel::toggleFollowResolution(bool state) {
 
 void BottomPanel::onAddPushButtonPressed() {
     brdfItemDialog = new BRDFItemDialog;
+    connect(brdfItemDialog, &BRDFItemDialog::itemAdded, this, &BottomPanel::addItem);
+    connect(this, &BottomPanel::destroyed, brdfItemDialog, &BRDFItemDialog::deleteLater);
     brdfItemDialog->show();
+}
+
+void BottomPanel::addItem(QTreeWidgetItem *item) {
+    BRDF tempItem(item->data(1, 0).toFloat(), item->data(2, 0).toFloat(), item->data(3, 0).toFloat(), item->data(0, 0).toString());
+    brdfList << tempItem;
+    brdfTreeWidget->addItem(item);
+    updateList();
+}
+
+void BottomPanel::delItem(int index) {
+    brdfList.removeAt(index);
+    updateList();
+}
+
+void BottomPanel::updateList() {
+    brdfNameList.clear();
+    if(brdfList.count()) {
+        for (auto & i : brdfList) {
+            brdfNameList << i.name();
+        }
+    }
+    QList<QComboBox*> comboBoxList = structureTab->findChildren<QComboBox*>();
+    for(QList<QComboBox*>::iterator j = comboBoxList.begin(); j != comboBoxList.end(); j++) {
+        j.operator*()->clear();
+        j.operator*()->addItems(brdfNameList);
+    }
 }

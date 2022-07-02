@@ -37,6 +37,7 @@ set(HSOURCE
         include/Image.h
         include/Observer.h
         include/PhysicalObject.h
+        include/Ray.h
         include/RayTracingProject.h
         include/SceneRender.h
         include/SDF.h

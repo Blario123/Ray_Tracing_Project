@@ -1,20 +1,21 @@
 #ifndef BOTTOMPANEL_H
 #define BOTTOMPANEL_H
 
-#include <QWidget>
 #include <QBoxLayout>
-#include <QGroupBox>
-#include <QTabWidget>
-#include <QSpinBox>
-#include <QLabel>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QGroupBox>
+#include <QLabel>
 #include <QPushButton>
+#include <QScreen>
+#include <QSpinBox>
+#include <QTabWidget>
 #include <QTreeWidgetItem>
+#include <QWidget>
 
 #include "BRDF.h"
-#include "BRDFItemTree.h"
 #include "BRDFItemDialog.h"
+#include "BRDFItemTree.h"
 
 class BottomPanel : public QWidget {
 Q_OBJECT
@@ -35,6 +36,8 @@ private:
     QWidget *brdfTab;
     QGridLayout *brdfLayout;
     int viewWidth, viewHeight;
+    QList<BRDF> brdfList;
+    QStringList brdfNameList;
     // Camera Tab
     QLabel *cameraCameraPositionLabel;
     QDoubleSpinBox *cameraCameraXPositionSpinBox;
@@ -88,10 +91,6 @@ private:
     QComboBox *structureRightBRDFComboBox;
     QLabel *structureBackBRDFLabel;
     QComboBox *structureBackBRDFComboBox;
-    QLabel *structureSphere1BRDFLabel;
-    QComboBox *structureSphere1BRDFComboBox;
-    QLabel *structureSphere2BRDFLabel;
-    QComboBox *structureSphere2BRDFComboBox;
     // BRDF Tab
     BRDFItemTree *brdfTreeWidget;
     QPushButton *brdfAddBRDFPushButton;
@@ -99,10 +98,13 @@ private:
     bool followResolution = false;
     BRDFItemDialog *brdfItemDialog;
 public slots:
+    void updateList();
     void onRenderPushButtonPressed();
-    void onViewSizeChanged(int,int);
+    void onViewSizeChanged(int, int);
     void toggleFollowResolution(bool);
     void onAddPushButtonPressed();
+    void addItem(QTreeWidgetItem *);
+    void delItem(int);
 };
 
 #endif //BOTTOMPANEL_H

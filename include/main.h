@@ -1,9 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "Vec3.h"
-#include "RayTracingProject.h"
 #include "GUI.h"
+#include "Vec3.h"
 
 Radiance ceiling_light_emitted(const Vec3 &position) {
 	return {1.0, 1.0, 1.0};

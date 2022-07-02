@@ -15,24 +15,20 @@
 class Image {
 public:
 	Image(int w, int h) : width(w), height(h), data(w * h) {}
-	
 	Vec3 operator()(int x, int y) const {
 		if (x < 0 || x >= width || y < 0 || y >= width)
 			throw;
 		return data[x + y * width];
 	}
-	
 	Vec3 &operator()(int x, int y) {
 		if (x < 0 || x >= width || y < 0 || y >= width)
 			throw;
 		return data[x + y * width];
 	}
-	
 	int Save(std::string filename) {
 		chardata = std::vector<unsigned char>(width * height * 3);
 		double a;
 		int index;
-		
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				index = x + width * y;
@@ -44,19 +40,10 @@ public:
 				chardata[index * 3 + 2] = 255.0 * std::pow(a, 1 / 2.2);
 			}
 		}
-		
-		return !stbi_write_png(
-				filename.c_str(), width, height, 3, &(chardata[0]), 3 * width);
+		return !stbi_write_png(filename.c_str(), width, height, 3, &(chardata[0]), 3 * width);
 	}
-	
-	int Width() {
-		return width;
-	}
-	
-	int Height() {
-		return height;
-	}
-
+	int Width() { return width; }
+	int Height() { return height; }
 private:
 	int width, height;
 	std::vector<unsigned char> chardata;

@@ -1,9 +1,10 @@
 #ifndef BRDF_H
 #define BRDF_H
 
+#include <QString>
+
 #include "RayTracingProject.h"
 #include "Vec3.h"
-#include <QString>
 
 class BRDF {
 public:
@@ -13,40 +14,23 @@ public:
         pB = 0.0;
         pName = "";
     };
-
     BRDF(float r_, float g_, float b_, const QString name = nullptr) {
         pR = r_;
         pG = g_;
         pB = b_;
         pName = name;
     };
-
     BRDF &operator=(const BRDF &o) {
         pR = o.pR;
         pG = o.pG;
         pB = o.pB;
         return *this;
     };
-
-    float r() {
-        return pR;
-    };
-
-    float g() {
-        return pG;
-    };
-
-    float b() {
-        return pB;
-    };
-
-    Radiance radiance() {
-        return damping_factor * pi_reciprocal * Vec3(pR, pG, pB);
-    };
-
-    const QString name() {
-        return pName;
-    };
+    inline float r() const { return pR; };
+    inline float g() const { return pG; };
+    inline float b() const { return pB; };
+    inline Radiance radiance() const { return damping_factor * pi_reciprocal * Vec3(pR, pG, pB); };
+    inline QString name() { return pName; };
 private:
     float pR, pG, pB;
     QString pName;

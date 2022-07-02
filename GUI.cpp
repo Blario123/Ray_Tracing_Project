@@ -10,24 +10,24 @@ GUI::GUI(QWidget *parent) : QWidget(parent),
 							sidePanel(new SidePanel),
 							statusBar(new StatusBar),
 							view(new View) {
-	connect(fileBar->closeAction, &QAction::triggered, this, &QWidget::close);
-	connect(fileBar->aboutAction, &QAction::triggered, this, &QApplication::aboutQt);
-	connect(fileBar->saveAction, &QAction::triggered, fileBar, &FileBar::save);
-    connect(view, &View::sizeChanged, bottomPanel, &BottomPanel::onViewSizeChanged);
-	
 	hSplitter->addWidget(view);
 	hSplitter->addWidget(sidePanel);
 	vSplitter->setOrientation(Qt::Vertical);
 	vSplitter->addWidget(hSplitter);
 	vSplitter->addWidget(bottomPanel);
-	
+
 	statusBar->setSizeGripEnabled(false);
-	
+
 	gridLayout->setContentsMargins(0, 0, 0, 0);
-	
+
 	gridLayout->addWidget(fileBar, 0, 0);
 	gridLayout->addWidget(vSplitter, 1, 0);
 	gridLayout->addWidget(statusBar, 2, 0);
-	
+
 	setLayout(gridLayout);
+
+	connect(fileBar->closeAction, &QAction::triggered, this, &QWidget::close);
+	connect(fileBar->aboutAction, &QAction::triggered, this, &QApplication::aboutQt);
+	connect(fileBar->saveAction, &QAction::triggered, fileBar, &FileBar::save);
+    connect(view, &View::sizeChanged, bottomPanel, &BottomPanel::onViewSizeChanged);
 }

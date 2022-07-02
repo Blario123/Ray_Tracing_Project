@@ -1,11 +1,8 @@
-//
-// Created by blario123 on 22/04/2022.
-//
-
 #ifndef RAYTRACINGPROJECT_H
 #define RAYTRACINGPROJECT_H
 
 #include <cmath>
+
 #include "Vec3.h"
 
 static const double pi = M_PI;

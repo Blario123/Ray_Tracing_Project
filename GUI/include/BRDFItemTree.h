@@ -1,8 +1,10 @@
 #ifndef BRDFITEMTREE_H
 #define BRDFITEMTREE_H
 
-#include "BRDF.h"
+#include <QListWidgetItem>
 #include <QTreeWidget>
+
+#include "BRDF.h"
 
 class BRDFItemTree : public QTreeWidget {
 Q_OBJECT
@@ -13,8 +15,10 @@ public:
 private:
     QList<BRDF> pList;
 public slots:
-    void addItem(const QTreeWidgetItem &);
+    void addItem(QTreeWidgetItem *i);
+    void delItem();
 signals:
+    void deleteAt(int);
 };
 
 #endif //BRDFITEMTREE_H

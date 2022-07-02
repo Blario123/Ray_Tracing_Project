@@ -7,7 +7,7 @@ BRDFItemTree::BRDFItemTree(QWidget *parent) : QTreeWidget(parent) {
 void BRDFItemTree::setList(QList<BRDF> &list) {
     QList<BRDF>::iterator i;
     for(i = list.begin(); i < list.end(); i++) {
-        QTreeWidgetItem *tempItem = new QTreeWidgetItem;
+        auto *tempItem = new QTreeWidgetItem;
         tempItem->setText(0, i->name());
         tempItem->setData(1, 0, i->r());
         tempItem->setData(2, 0, i->g());
@@ -16,6 +16,12 @@ void BRDFItemTree::setList(QList<BRDF> &list) {
     }
 }
 
-void BRDFItemTree::addItem(const QTreeWidgetItem &i) {
-    addTopLevelItem(i.clone());
+void BRDFItemTree::addItem(QTreeWidgetItem *i) {
+    addTopLevelItem(i->clone());
+}
+
+void BRDFItemTree::delItem() {
+    int toDel = currentIndex().row();
+    takeTopLevelItem(toDel);
+    emit deleteAt(toDel);
 }

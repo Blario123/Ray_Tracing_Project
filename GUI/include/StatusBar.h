@@ -1,7 +1,3 @@
-//
-// Created by blario123 on 23/04/2022.
-//
-
 #ifndef STATUSBAR_H
 #define STATUSBAR_H
 
@@ -11,7 +7,6 @@ class StatusBar : public QStatusBar {
 Q_OBJECT
 public:
 	explicit StatusBar(QWidget *parent = nullptr);
-	
 	~StatusBar() override = default;
 };
 
