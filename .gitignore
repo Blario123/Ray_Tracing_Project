@@ -8,3 +8,6 @@ test.cc
 .vscode/*
 .idea/
 build/
+cmake-build-*/
+/Output/*.m
+*.user

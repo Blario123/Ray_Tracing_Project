@@ -6,37 +6,61 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-if(WIN32)
-    set(CMAKE_PREFIX_PATH "C:/Qt/6.1.3/mingw81_64/lib/cmake")
-else()
-    set(CMAKE_PREFIX_PATH ~/Qt/6.2.1/gcc_64)
-endif(WIN32)
+if (WIN32)
+    set(CMAKE_PREFIX_PATH "C:/Qt/6.2.2/mingw_64/lib/cmake")
+else ()
+    set(CMAKE_PREFIX_PATH ~/Qt/6.3.0/gcc_64)
+endif (WIN32)
 
 find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        OpenGL
+        OpenGLWidgets
         REQUIRED)
 
-include_directories(include)
+include_directories(include GUI/include)
 
 set(CPPSOURCE
-        main.cpp)
+        main.cpp
+        GUI.cpp
+        GUI/src/BottomPanel.cpp
+        GUI/src/FileBar.cpp
+        GUI/src/ItemTree.cpp
+        GUI/src/SidePanel.cpp
+        GUI/src/StatusBar.cpp
+        GUI/src/BRDFItemTree.cpp
+        GUI/src/View.cpp
+        GUI/src/OpenGLView.cpp)
+
 set(HSOURCE
         include/main.h
         include/GUI.h
         include/Image.h
         include/Observer.h
         include/PhysicalObject.h
+        include/Ray.h
         include/RayTracingProject.h
         include/SceneRender.h
         include/SDF.h
         include/stb_image_write.h
-        include/Vec3.h)
+        include/Vec3.h
+        include/GUI.h
+        include/BRDF.h
+        GUI/include/BottomPanel.h
+        GUI/include/BRDFItemDialog.h
+        GUI/include/FileBar.h
+        GUI/include/SidePanel.h
+        GUI/include/StatusBar.h
+        GUI/include/BRDFItemTree.h
+        GUI/include/View.h
+        GUI/include/ItemTree.h
+        GUI/include/OpenGLView.h)
 
 add_executable(${PROJECT_NAME} ${CPPSOURCE} ${HSOURCE})
 
-target_link_libraries(${PROJECT_NAME} Qt::Core Qt::Gui Qt::Widgets)
+target_link_libraries(${PROJECT_NAME} Qt::Core Qt::Gui Qt::Widgets Qt::OpenGL Qt::OpenGLWidgets)
 
 if (WIN32)
     set(DEBUG_SUFFIX)
