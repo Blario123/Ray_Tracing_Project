@@ -16,6 +16,8 @@ find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        OpenGL
+        OpenGLWidgets
         REQUIRED)
 
 include_directories(include GUI/include)
@@ -29,7 +31,8 @@ set(CPPSOURCE
         GUI/src/SidePanel.cpp
         GUI/src/StatusBar.cpp
         GUI/src/BRDFItemTree.cpp
-        GUI/src/View.cpp)
+        GUI/src/View.cpp
+        GUI/src/OpenGLView.cpp)
 
 set(HSOURCE
         include/main.h
@@ -51,11 +54,13 @@ set(HSOURCE
         GUI/include/SidePanel.h
         GUI/include/StatusBar.h
         GUI/include/BRDFItemTree.h
-        GUI/include/View.h GUI/include/ItemTree.h)
+        GUI/include/View.h
+        GUI/include/ItemTree.h
+        GUI/include/OpenGLView.h)
 
 add_executable(${PROJECT_NAME} ${CPPSOURCE} ${HSOURCE})
 
-target_link_libraries(${PROJECT_NAME} Qt::Core Qt::Gui Qt::Widgets)
+target_link_libraries(${PROJECT_NAME} Qt::Core Qt::Gui Qt::Widgets Qt::OpenGL Qt::OpenGLWidgets)
 
 if (WIN32)
     set(DEBUG_SUFFIX)
